@@ -1,0 +1,25 @@
+{
+  "name": "dsh-llm-multimodal",
+  "version": "0.1.0",
+  "description": "DSH 插件：在 DSH 中提供图像/视频生成工具，基于 OpenAI 兼容 API。模型自动从现有 llm-pi-ai 设置中发现。",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": { "default": "./lib/index.js" },
+    "./client": { "default": "./lib/client.js" },
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": ["@deepseek-ai/dsh-client-runtime"],
+      "platform": "web"
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/dsh-tools": "^0.1.0"
+  }
+}

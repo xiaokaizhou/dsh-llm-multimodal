@@ -1,0 +1,10 @@
+# dsh-llm-multimodal bundle patch
+#
+# Host entry: registers generate_image / generate_video tools. Model list is
+# auto-discovered from the existing `llm-pi-ai` settings namespace. No
+# settings section is registered in this build (manual provider configuration
+# is paused until the persistence path is fixed).
+- insert:
+    - id: llm-multimodal
+      name: dsh-llm-multimodal
+      config: {}
