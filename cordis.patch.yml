@@ -1,9 +1,9 @@
 # dsh-llm-multimodal bundle patch
 #
-# Host entry: registers generate_image / generate_video tools. Model list is
-# auto-discovered from the existing `llm-pi-ai` settings namespace. No
-# settings section is registered in this build (manual provider configuration
-# is paused until the persistence path is fixed).
+# This plugin owns five global LLM tools — generate_text / _image / _video /
+# generate_tts / generate_music — and the `llm-multimodal` settings
+# namespace. No host-level config is required: tools discover their models
+# from the existing `llm-pi-ai` settings at every call.
 - insert:
     - id: llm-multimodal
       name: dsh-llm-multimodal
