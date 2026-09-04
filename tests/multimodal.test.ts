@@ -19,6 +19,7 @@ import {
   applyOverride,
   extractFirstMedia,
   extractFirstVideoUrl,
+  extractFirstCoverUrl,
   IMG_KEYWORDS,
   VID_KEYWORDS,
   TTS_KEYWORDS,
@@ -209,6 +210,40 @@ describe('extractFirstVideoUrl', () => {
     expect(extractFirstVideoUrl('')).toBeNull()
     expect(extractFirstVideoUrl(null)).toBeNull()
     expect(extractFirstVideoUrl(undefined)).toBeNull()
+  })
+})
+
+describe('extractFirstCoverUrl', () => {
+  it('picks coverUrl from the body root', () => {
+    expect(extractFirstCoverUrl({ url: 'https://cdn/v.mp4', coverUrl: 'https://cdn/c.jpg' }))
+      .toBe('https://cdn/c.jpg')
+  })
+
+  it('picks snake_case cover_url', () => {
+    expect(extractFirstCoverUrl({ video: { url: 'https://cdn/v.mp4', cover_url: 'https://cdn/c.png' } }))
+      .toBe('https://cdn/c.png')
+  })
+
+  it('walks data[0] for OpenAI-style arrays', () => {
+    expect(extractFirstCoverUrl({ data: [{ url: 'https://cdn/v.mp4', thumbnail: 'https://cdn/c.webp' }] }))
+      .toBe('https://cdn/c.webp')
+  })
+
+  it('walks output.preview_image etc.', () => {
+    expect(extractFirstCoverUrl({ output: { preview_image: 'https://cdn/c.jpg' } }))
+      .toBe('https://cdn/c.jpg')
+  })
+
+  it('falls back to scanning stringified body for the first image URL', () => {
+    expect(extractFirstCoverUrl({ video_url: 'https://cdn/v.mp4', other: { poster: 'https://cdn/c.jpg' } }))
+      .toBe('https://cdn/c.jpg')
+  })
+
+  it('returns null when no cover is present', () => {
+    expect(extractFirstCoverUrl({ url: 'https://cdn/v.mp4' })).toBeNull()
+    expect(extractFirstCoverUrl(null)).toBeNull()
+    expect(extractFirstCoverUrl(undefined)).toBeNull()
+    expect(extractFirstCoverUrl('not an object')).toBeNull()
   })
 })
 
