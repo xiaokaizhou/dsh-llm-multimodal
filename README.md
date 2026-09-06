@@ -2,9 +2,9 @@
 
 [![中文](https://img.shields.io/badge/语言-中文-blue)](./README.md) [![English](https://img.shields.io/badge/language-English-lightgrey)](./README.en.md) [![npm](https://img.shields.io/npm/v/dsh-llm-multimodal)](https://www.npmjs.com/package/dsh-llm-multimodal)
 
-> **DSH 插件：在聊天中提供图像/视频生成工具，基于 OpenAI 兼容 API。**
+> **DSH 插件：在聊天中提供图像/视频/语音/音乐生成工具，基于 OpenAI 兼容 API。**
 
-`generate_image` / `generate_video` 两个工具会自动从 `llm-pi-ai` 设置中识别可用模型：模型 id 包含 image / flux / dall / imagen / sdxl / video / sora / seedance / kling / veo / runway / pika 等关键词时，工具即可使用。
+`generate_image` / `generate_video` / `generate_tts` / `generate_music` 四个多模态工具会自动从 `llm-pi-ai` 设置中识别可用模型：模型 id 包含 image / flux / dall / imagen / sdxl / realesrgan / juggernaut / photoreal / video / sora / seedance / kling / veo / runway / pika / wan / ltx / cogvideox / seedvr / musetalk / lipsync / tts / speech / voice / minimax / voxcpm / cosyvoice / music / song / lyric 等关键词时，工具即可使用。
 
 ## 安装
 
@@ -87,17 +87,40 @@ llm-pi-ai:
 
 工具会自动从配置中发现可用模型，无需额外参数。
 
+### 语音合成与音色克隆
+
+- 生成语音：`generate_tts`（文本 → 语音）与 `generate_music`（音乐/BGM/音效，共用 OpenAI 兼容 `/audio/speech` 端点）
+- **模型按模态分离**：`generate_tts` 只用 TTS 类模型（id 含 `tts/speech/voice/minimax/voxcpm/cosyvoice`）；`generate_music` 只用 music 类模型（id 含 `music/song/lyric`）。TTS 模型不会服务于 music，反之亦然
+- **OpenAI 协议**：4 个多模态工具（image / video / tts / music）走 OpenAI 兼容端点；provider 默认 `apiProtocol: openai`；显式配置为其他协议（如 `claude`）时工具会在调用前拒绝并给出可操作提示。`generate_text` 不在此列，它走 harness 的 LlmRuntime（`ctx.llm.prepareCall`），由 harness 内部多协议路由处理
+- 预设音色：`voice` 参数填 MiniMax 预设 id（如 `female-shaonv` / `male-qn-jingying`），或直接填已克隆的 voice_id
+- 角色专属音色（克隆）：传 `clone_audio`（参考音频：本地路径 / `file://` / http(s) URL / `data:audio` base64）+ `voice_name`（建议用角色名）
+  - 首次调用自动执行「上传音频 → 注册 voice_id → 用克隆音色朗读」
+  - 后续相同 `voice_name` 调用直接复用已克隆音色（持久化在 `~/.dsh/llm-multimodal-voices.json`），零额外网络开销
+  - 可选 `clone_voice_id` 自定义 voice_id；`output_format` 支持 `mp3` / `wav` / `pcm` / `aac` / `flac` / `opus`
+  - 需要 provider 支持 MiniMax 兼容的 `files/upload` + `voice_clone` 接口
+
 ## 限制
 
 - 当前版本自动 provider 配置界面已暂停；工具通过 `llm-pi-ai` 设置自动发现模型
 - 视频生成采用轮询，最长等待约 5 分钟
 - 需要 provider 支持 OpenAI 兼容接口
 
-## 赞助
+## 打赏支持
 
-如果你觉得这个插件对你有帮助，欢迎打赏支持：
+若这个插件帮到了你，欢迎用下面的二维码请我喝杯咖啡。
 
-![微信支付](https://raw.githubusercontent.com/xiaokaizhou/dsh-llm-multimodal/main/.github/wechat-pay.jpg) ![支付宝](https://raw.githubusercontent.com/xiaokaizhou/dsh-llm-multimodal/main/.github/alipay.jpg)
+<table>
+  <tr>
+    <td align="center">
+      <img src="https://raw.githubusercontent.com/xiaokaizhou/dsh-llm-multimodal/main/.github/wechat-pay.jpg" width="180" alt="WeChat Pay"><br>
+      <strong>微信支付</strong>
+    </td>
+    <td align="center">
+      <img src="https://raw.githubusercontent.com/xiaokaizhou/dsh-llm-multimodal/main/.github/alipay.jpg" width="180" alt="Alipay"><br>
+      <strong>支付宝</strong>
+    </td>
+  </tr>
+</table>
 
 ## License
 

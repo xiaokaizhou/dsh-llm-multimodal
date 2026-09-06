@@ -93,11 +93,22 @@ The tools auto-discover available models from configuration; no extra parameters
 - Video generation uses polling and may wait up to ~5 minutes
 - Provider must support an OpenAI-compatible interface
 
-## Donate
+## Sponsorship
 
-If this plugin helps you, consider buying me a coffee:
+If this plugin saves you time, you can buy me a coffee with one of the following QR codes.
 
-![WeChat Pay](https://raw.githubusercontent.com/xiaokaizhou/dsh-llm-multimodal/main/.github/wechat-pay.jpg) ![Alipay](https://raw.githubusercontent.com/xiaokaizhou/dsh-llm-multimodal/main/.github/alipay.jpg)
+<table>
+  <tr>
+    <td align="center">
+      <img src="https://raw.githubusercontent.com/xiaokaizhou/dsh-llm-multimodal/main/.github/wechat-pay.jpg" width="180" alt="WeChat Pay"><br>
+      <strong>WeChat Pay</strong>
+    </td>
+    <td align="center">
+      <img src="https://raw.githubusercontent.com/xiaokaizhou/dsh-llm-multimodal/main/.github/alipay.jpg" width="180" alt="Alipay"><br>
+      <strong>Alipay</strong>
+    </td>
+  </tr>
+</table>
 
 ## License
 

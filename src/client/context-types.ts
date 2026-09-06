@@ -5,7 +5,8 @@
  */
 
 import type { ReactElement } from 'react'
-import type { SettingsScope, SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
+import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
+import type { SettingsScope } from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { LocaleDict } from './locales.ts'
 
 type SlotRegistrar<T> = (descriptor: {

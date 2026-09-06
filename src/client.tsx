@@ -41,7 +41,10 @@ import {
   type ReactElement,
 } from 'react'
 import type { Context } from './context-types.ts'
-import { createSnapshotStore, type SettingsScope, type SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
+import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
+// SettingsScope moved to dsh-client-ui-settings/client in DSH 0.1.2; only used
+// as a type here so we pull it as a type-only import (erased at build time).
+import type { SettingsScope } from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { zh, en, type LocaleDict } from './client/locales.ts'
 import { ensureStyles } from './client/styles.ts'

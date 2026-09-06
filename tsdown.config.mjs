@@ -36,11 +36,19 @@ const PLATFORM_MODULES = [
  * Other runtime modules that dsh-client-runtime exposes — these MUST be
  * resolved by the loader's `require`, not bundled in (the host keeps
  * a single instance for cross-plugin observability).
+ *
+ * DSH 0.1.2 split `dsh-client-runtime` into:
+ *   - `dsh-client-store`           (React-free observable + snapshot store)
+ *   - `dsh-client-ui-slots`        (SlotRegistry)
+ *   - `dsh-client-ui-primitives`   (object-layer primitives)
+ *   - `dsh-client-ui-settings`     (SettingsScope — type-only import)
+ * Only value imports need to be listed; `import type { ... }` is erased
+ * at build time and does not require a runtime resolution.
  */
 const HOST_RUNTIME_MODULES = [
-  '@deepseek-ai/dsh-client-runtime',
-  '@deepseek-ai/dsh-client-runtime/client',
+  '@deepseek-ai/dsh-client-store',
   '@deepseek-ai/dsh-client-ui-slots',
+  '@deepseek-ai/dsh-client-ui-primitives',
   '@deepseek-ai/dsh-client-ui-settings',
 ]
 
