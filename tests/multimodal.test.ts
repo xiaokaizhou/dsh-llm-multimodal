@@ -286,7 +286,7 @@ describe('applyOverride', () => {
       provider: '', baseURL: 'https://override.example.com/v1',
       apiKey: 'override-key', defaultModel: 'custom-image-model',
       voice: '',
-    })
+    }, { overrideId: true })
     expect(out?.baseURL).toBe('https://override.example.com/v1')
     expect(out?.apiKey).toBe('override-key')
     expect(out?.id).toBe('custom-image-model')
@@ -295,10 +295,18 @@ describe('applyOverride', () => {
   it('keeps the auto-discovered baseURL when override has empty baseURL', () => {
     const out = applyOverride(model, {
       provider: 'custom', baseURL: '', apiKey: '', defaultModel: 'custom-x', voice: '',
-    })
+    }, { overrideId: true })
     expect(out?.baseURL).toBe('https://original.example.com/v1')
     expect(out?.provider).toBe('custom')
     expect(out?.id).toBe('custom-x')
+  })
+
+  it('without overrideId, a user-chosen model id survives the merge (no provider-switch inference)', () => {
+    const out = applyOverride(model, {
+      provider: 'custom', baseURL: '', apiKey: '', defaultModel: 'custom-x', voice: '',
+    })
+    expect(out?.id).toBe('agnes-image-2.1-flash')
+    expect(out?.provider).toBe('custom')
   })
 
   it('returns null when input model is null', () => {

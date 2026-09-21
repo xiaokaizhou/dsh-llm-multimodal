@@ -52,8 +52,12 @@ function makeFakeLlm(opts: {
         // generator function. (A plain `async function` returning an array
         // would force the consumer to `await prep.stream(...)` first, which
         // the real harness does NOT do.)
-        async *stream(params: { provider: string; model: string; messages: unknown; signal?: AbortSignal }) {
-          const callRec = { provider: params.provider, model: params.model, messages: params.messages }
+        async *stream(params: { provider?: string; model?: string; messages: unknown; signal?: AbortSignal }) {
+          // The plugin spreads the harness's prepared config (prep.config)
+          // into stream(); the fake returns a config that carries no
+          // provider/model, so the recorded call mirrors what prepareCall
+          // itself received — the authoritative pair for assertions.
+          const callRec = { provider: args.provider, model: args.model, messages: params.messages }
           calls.push(callRec)
           opts.onPrepare?.({ ...args, messages: params.messages })
           for (const c of chunks) yield c
@@ -132,8 +136,8 @@ function makeFakeCtx(opts: {
   }
 }
 
-describe('plugin apply — registers all five generator tools', () => {
-  it('registers generate_text, generate_image, generate_video, generate_tts, generate_music', async () => {
+describe('plugin apply — registers all six generator tools', () => {
+  it('registers generate_text, generate_image, generate_video, generate_vision, generate_tts, generate_music', async () => {
     const { ctx } = makeFakeCtx()
     const mod = await loadPlugin()
     await mod.apply(ctx as never)
@@ -145,6 +149,7 @@ describe('plugin apply — registers all five generator tools', () => {
       'generate_text',
       'generate_tts',
       'generate_video',
+      'generate_vision',
     ])
 
     // Every tool exposes a description so the model can pick it.

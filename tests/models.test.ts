@@ -75,6 +75,7 @@ describe('buildModelsSnapshot — provider + per-modality grouping', () => {
     expect(buckets.text.map((m) => m.id).sort()).toEqual(['agnes-text-01', 'gpt-4o-mini'])
     expect(buckets.tts.map((m) => m.id).sort()).toEqual(['minimax-speech-02-hd'])
     expect(buckets.music).toEqual([])
+    expect(buckets.vision).toEqual([])
 
     // Every model also carries its provider id so the client can render
     // <optgroup> rows per provider.
@@ -87,7 +88,7 @@ describe('buildModelsSnapshot — provider + per-modality grouping', () => {
     const snap = await buildModelsSnapshot({ resolve: async () => ({ value: '' }) })
     expect(snap.providers).toEqual([])
     expect(snap.byModality).toEqual({
-      text: [], image: [], video: [], tts: [], music: [],
+      text: [], image: [], video: [], vision: [], tts: [], music: [],
     })
   })
 
@@ -123,5 +124,77 @@ describe('buildModelsSnapshot — provider + per-modality grouping', () => {
     const snap = await buildModelsSnapshot({ resolve: async () => ({ value: '' }) })
     expect(snap.providers[0].displayName).toBe('agnes')
     expect(snap.providers[0].id).toBe('agnes')
+  })
+
+  it('routes vision-classified ids (qwen-vl / gpt-4o-vision / llava) into the vision bucket', async () => {
+    await writeYaml([
+      'llm-pi-ai:',
+      '  providers:',
+      '    openai:',
+      '      baseURL: https://api.openai.com/v1',
+      '      models:',
+      '        - id: gpt-4o-vision',
+      '          name: GPT-4o Vision',
+      '    qwen:',
+      '      baseURL: https://dashscope.aliyuncs.com/compatible-mode/v1',
+      '      models:',
+      '        - id: qwen-vl-plus',
+      '          name: Qwen VL Plus',
+      '        - id: qwen-7b-chat',
+      '          name: Qwen 7B Chat',
+      '    local:',
+      '      baseURL: http://localhost:11434/v1',
+      '      models:',
+      '        - id: llava-1.5-7b',
+      '          name: LLaVA 1.5',
+      '',
+    ].join('\n'))
+    const snap = await buildModelsSnapshot({ resolve: async () => ({ value: '' }) })
+    // The vision bucket must contain ONLY the VL-classified rows; bare
+    // qwen-7b-chat must NOT leak in (it stays in text).
+    expect(snap.byModality.vision.map((m) => m.id).sort()).toEqual([
+      'gpt-4o-vision',
+      'llava-1.5-7b',
+      'qwen-vl-plus',
+    ])
+    expect(snap.byModality.text.map((m) => m.id).sort()).toEqual(['qwen-7b-chat'])
+    // Each vision row carries its provider so the UI can render <optgroup>.
+    for (const m of snap.byModality.vision) {
+      expect(m.provider).toMatch(/openai|qwen|local/)
+    }
+  })
+
+  // Regression: ~/models 网关把 local-h3 / local-h3c / local-minimax-h3 都
+  // 路由到 MiniMax-H3（视频生成器）。id 中没有 "video" 关键字，旧版会被
+  // 错认为 text（h3 / h3c）或 tts（minimax 关键字），于是视频下拉框里看不到。
+  // 修复后必须全部进 video 桶。
+  it('routes local MiniMax Hailuo h3 family ids into the video bucket', async () => {
+    await writeYaml([
+      'llm-pi-ai:',
+      '  providers:',
+      '    local:',
+      '      displayName: Local (M5 Pro)',
+      '      baseURL: http://127.0.0.1:8000/v1',
+      '      models:',
+      '        - id: local-h3c',
+      '          name: H3C 视频生成 (本地)',
+      '        - id: local-h3',
+      '          name: MiniMax-H3 视频生成 (本地)',
+      '        - id: local-minimax-h3',
+      '          name: MiniMax Hailuo 视频生成 (本地)',
+      '        - id: local-hailuo-pro',
+      '          name: Hailuo Pro 视频生成 (本地)',
+      '',
+    ].join('\n'))
+    const snap = await buildModelsSnapshot({ resolve: async () => ({ value: '' }) })
+    expect(snap.byModality.video.map((m) => m.id).sort()).toEqual([
+      'local-h3',
+      'local-h3c',
+      'local-hailuo-pro',
+      'local-minimax-h3',
+    ])
+    // None of them leaked into the wrong bucket.
+    expect(snap.byModality.text.find((m) => m.id === 'local-h3')).toBeUndefined()
+    expect(snap.byModality.tts.find((m) => m.id === 'local-minimax-h3')).toBeUndefined()
   })
 })
