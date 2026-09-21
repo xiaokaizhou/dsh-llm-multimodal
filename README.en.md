@@ -64,14 +64,14 @@ OpenAI Sora-style `/videos/generations` and Agnes-style `/videos` endpoints. Wor
 
 Sora / Seedance / Kling / Veo / Runway / Pika / Hunyuan Video / CogVideo / MiniMax Hailuo
 
-Supports duration (4–15s) and aspect ratio (16:9 / 9:16 / 1:1, …), first/last-frame keyframe mode, and image-array reference mode.
+Supports text-to-video, image-to-video (pass `image`), and keyframe animation (pass `keyframes` — first/last map to the provider's first_frame / last_frame); `mode` accepts `text` / `keyframe` / `reference` explicitly. `duration` defaults to 5s (Agnes 2.5 Flash accepts 4–12), and framing goes through `size` (pixels such as `1280x720` for OpenAI, tiers such as `720P` for Agnes); `negative_prompt` is also available. `num_frames` / `frame_rate` are no longer accepted — the provider picks the frame count.
 
 ### Vision understanding
 `generate_vision` speaks the OpenAI-compatible multimodal `/chat/completions` protocol (text + image_url parts) and accepts multiple images per call (Data URI Base64, `file://`, or absolute local paths are converted to Data URIs automatically):
 
 GPT-4o Vision / Claude 3 Vision / Gemini Vision / Qwen-VL / LLaVA / InternVL / Pixtral / PaliGemma / GLM-4V / Mantis …
 
-Supports `detail` (low / high / auto, OpenAI token-cost hint), `history` (multi-turn visual chat), and `temperature` / `top_p` sampling.
+Parameters: `prompt` (required), `images` (multiple allowed), `model`, `system`, `max_tokens` (default 1024), `temperature` (default 0.2, tuned for factual visual QA), `top_p`, and `detail` (`low` = 85 fixed tokens / `high` = per-tile cost for OCR and fine detail / `auto` = model decides).
 
 ### Text generation
 `generate_text` routes through the harness LlmRuntime (`ctx.llm.prepareCall`), so the harness handles multi-protocol routing and it is not restricted to OpenAI. Model ids use the `<provider>/<model>` shape.

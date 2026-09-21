@@ -64,14 +64,14 @@ DALL-E / Flux / Imagen / Midjourney / SDXL / Kandinsky
 
 Sora / Seedance / Kling / Veo / Runway / Pika / Hunyuan Video / CogVideo / MiniMax Hailuo
 
-支持时长（4–15s）与纵横比（16:9 / 9:16 / 1:1 等）参数；首帧 / 尾帧关键帧模式（keyframe）与参考图模式（reference）。
+支持文生视频、图生视频（传 `image`）与关键帧模式（传 `keyframes`，首帧/尾帧映射到 provider 的 first_frame / last_frame）；`mode` 可显式指定 `text` / `keyframe` / `reference`。`duration` 默认 5 秒（Agnes 2.5 Flash 接受 4–12），画幅走 `size`（OpenAI 用像素如 `1280x720`，Agnes 用档位如 `720P`）；另有 `negative_prompt`。`num_frames` / `frame_rate` 已不再接受——帧数由 provider 决定。
 
 ### 视觉理解
 `generate_vision` 走 OpenAI 兼容 `/chat/completions` 多模态内容协议（text + image_url），一次可传多张图（Data URI Base64、`file://` 或绝对本地路径会自动转 Data URI）：
 
 GPT-4o Vision / Claude 3 Vision / Gemini Vision / Qwen-VL / LLaVA / InternVL / Pixtral / PaliGemma / GLM-4V / Mantis …
 
-支持 `detail`（low / high / auto，OpenAI token 成本档位）、`history`（多轮视觉对话）、`temperature` / `top_p` 采样。
+参数：`prompt`（必填）、`images`（支持多张）、`model`、`system`、`max_tokens`（默认 1024）、`temperature`（默认 0.2，偏事实型视觉问答）、`top_p`、`detail`（`low` 固定 85 token / `high` 分块计费，OCR 与细节场景用 `high` / `auto` 由模型决定）。
 
 ### 文本生成
 `generate_text` 走 harness 的 LlmRuntime（`ctx.llm.prepareCall`），由 harness 内部多协议路由处理，协议不受 OpenAI 限制；model id 形如 `<provider>/<model>`。
