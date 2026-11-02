@@ -25,6 +25,9 @@ export function ensureStyles(): void {
 .dsh-llmm-chevron{flex:none;color:var(--dsw-alias-label-tertiary);transition:transform .16s}
 .dsh-llmm-chevron-open{transform:rotate(180deg)}
 .dsh-llmm-read-only{margin:0 16px;font-size:12px;line-height:1.5;color:var(--dsw-alias-label-tertiary)}
+.dsh-llmm-write-status{margin:0 16px;font-size:12px;line-height:1.5;color:var(--dsw-alias-label-tertiary)}
+.dsh-llmm-write-status[data-status="saved"]{color:var(--dsw-alias-label-secondary)}
+.dsh-llmm-write-status[data-status="error"]{color:var(--dsw-alias-alert-danger,var(--dsw-alias-label-primary))}
 .dsh-llmm-section-list{list-style:none;padding:0 16px 16px;margin:0;border-top:1px solid var(--dsw-alias-border-l2)}
 .dsh-llmm-section{list-style:none;border-top:1px solid var(--dsw-alias-border-l2);padding:10px 0}
 .dsh-llmm-section-row{display:flex;align-items:center;gap:10px}

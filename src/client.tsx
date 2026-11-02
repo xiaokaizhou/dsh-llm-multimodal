@@ -109,9 +109,23 @@ const EMPTY_MODALITY: ModalityState = {
   voice: '',
 }
 
+/**
+ * Outcome of the last Host write. The Host may refuse a write (for example
+ * when its namespace revision moved on), and a refused write leaves the
+ * snapshot untouched — so the card has to show the outcome explicitly instead
+ * of pretending the change was applied.
+ */
+interface WriteState {
+  status: 'idle' | 'saving' | 'saved' | 'error'
+  message: string
+}
+
+const IDLE_WRITE: WriteState = { status: 'idle', message: '' }
+
 interface CardSnapshot {
   available: boolean
   writable: boolean
+  write: WriteState
   text: ModalityState
   image: ModalityState
   video: ModalityState
@@ -156,6 +170,7 @@ function projectSnapshot(form: ConfigForm<unknown>): CardSnapshot {
   return {
     available: snap.status === 'ready',
     writable: snap.writable,
+    write: IDLE_WRITE,
     text: coerceModality(value.text),
     image: coerceModality(value.image),
     video: coerceModality(value.video),
@@ -389,6 +404,7 @@ interface PickerProps {
   models: ModelsSnapshot
   loadingModels: boolean
   loadError: string
+  write: WriteState
   setField: (modality: ModalityKey, field: keyof ModalityState, value: string) => void
   setWhole: (modality: ModalityKey, value: ModalityState) => void
   reset: (modality: ModalityKey) => void
@@ -416,6 +432,17 @@ function ModelPicker(props: PickerProps): ReactElement {
     Fragment,
     null,
     !writable ? h('p', { className: 'dsh-llmm-read-only', role: 'status' }, t('readOnly')) : null,
+    props.write.status !== 'idle'
+      ? h(
+        'p',
+        { className: 'dsh-llmm-write-status', role: 'status', 'data-status': props.write.status },
+        props.write.status === 'saving'
+          ? t('writeSaving')
+          : props.write.status === 'saved'
+            ? t('writeSaved')
+            : props.write.message || t('writeFailed'),
+      )
+      : null,
     props.loadingModels ? h('p', { className: 'dsh-llmm-hint' }, t('loadingModels')) : null,
     props.loadError ? h('p', { className: 'dsh-llmm-hint' }, `${t('loadModelsFailed')}: ${props.loadError}`) : null,
     h(
@@ -427,12 +454,25 @@ function ModelPicker(props: PickerProps): ReactElement {
           value: `${p.provider}:${p.id}`,
           label: `${p.provider} / ${p.name || p.id}`,
         }))
+        // The configured model is always offered, even when the Host's catalog
+        // no longer lists it (a removed provider, or a model that was written
+        // by hand). Without this the `<select>` would fall back to the
+        // placeholder and the saved selection would look lost.
+        const state = snap[m]
+        const currentValue =
+          state.provider && state.provider !== 'custom' && state.defaultModel
+            ? `${state.provider}:${state.defaultModel}`
+            : ''
+        const options =
+          currentValue && !presetOptions.some((o) => o.value === currentValue)
+            ? [...presetOptions, { value: currentValue, label: `${state.provider} / ${state.defaultModel} (${t('currentModelOption')})` }]
+            : presetOptions
         return h(ModalitySection, {
           key: m,
           modality: m,
           label: sectionLabel[m],
-          state: snap[m],
-          presetOptions,
+          state,
+          presetOptions: options,
           hasAnyPreset: presets.length > 0,
           t,
           writable,
@@ -444,11 +484,11 @@ function ModelPicker(props: PickerProps): ReactElement {
             if (val === 'custom') {
               props.setWhole(m, {
                 provider: 'custom',
-                apiProtocol: snap[m].apiProtocol,
-                baseURL: snap[m].baseURL,
-                apiKey: snap[m].apiKey,
-                defaultModel: snap[m].defaultModel,
-                voice: snap[m].voice,
+                apiProtocol: state.apiProtocol,
+                baseURL: state.baseURL,
+                apiKey: state.apiKey,
+                defaultModel: state.defaultModel,
+                voice: state.voice,
               })
               return
             }
@@ -461,7 +501,7 @@ function ModelPicker(props: PickerProps): ReactElement {
               baseURL: '',
               apiKey: '',
               defaultModel: modelId,
-              voice: snap[m].voice,
+              voice: state.voice,
             })
           },
           onFieldChange: (field: keyof ModalityState, value: string) => props.setField(m, field, value),
@@ -525,6 +565,7 @@ function SettingsCard(props: SettingsCardProps): ReactElement | null {
       models: catalog.models,
       loadingModels: catalog.loadingModels,
       loadError: catalog.loadError,
+      write: snap.write,
       setField,
       setWhole,
       reset,
@@ -552,6 +593,7 @@ function SettingsTab(props: SettingsCardProps): ReactElement {
       models: catalog.models,
       loadingModels: catalog.loadingModels,
       loadError: catalog.loadError,
+      write: snap.write,
       setField,
       setWhole,
       reset,
@@ -572,24 +614,63 @@ export function apply(ctx: Context): void {
   // flag; its writes go straight back to the profile patch.
   const form = ctx.configForms.get<Record<string, unknown>>(SETTINGS_NAMESPACE)
 
-  const project = () => projectSnapshot(form)
+  // The outcome of the last write lives outside the Host snapshot: a refused
+  // write leaves that snapshot untouched, so the card needs its own channel to
+  // tell the user what happened.
+  let writeState: WriteState = IDLE_WRITE
+  const project = (): CardSnapshot => ({ ...projectSnapshot(form), write: writeState })
   const store = createSnapshotStore(project()) as SnapshotStore<CardSnapshot>
+  const publish = () => store.set(project())
   ctx.effect(() => {
-    const off = form.subscribe(() => store.set(project()))
+    const off = form.subscribe(publish)
     return () => {
       off()
       void form.dispose?.()
     }
   }, 'dsh-llm-multimodal: form subscription')
 
-  // One atomic Host write per user action. The controller serialises them,
-  // fences each with the namespace revision and folds the accepted values
-  // back into the mirror the card reads from.
-  //
-  // The Host only accepts paths that address a volatile *leaf*, so a
-  // "whole section" write is expanded into one op per field.
+  /**
+   * One atomic Host write per user action.
+   *
+   * `form.mutate()` resolves to `false` when the Host refuses the write — most
+   * often because the namespace revision moved on since the card last read it
+   * (another writer, a profile edit, or a second surface of this card). The
+   * controller reloads the mirror before giving up, so one retry carries the
+   * fresh revision and is accepted. The outcome is published to the card,
+   * because a refused write would otherwise look exactly like "nothing
+   * happened".
+   */
+  type PathOp = { op: 'set'; path: string[]; value: string } | { op: 'unset'; path: string[] }
+  type PathOps = Parameters<ConfigForm<unknown>['mutate']>[0]
+
+  const runWrite = async (ops: PathOp[]): Promise<boolean> => {
+    writeState = { status: 'saving', message: '' }
+    publish()
+    let ok = false
+    try {
+      ok = await form.mutate(ops as PathOps)
+    } catch {
+      ok = false
+    }
+    if (!ok) {
+      // The controller has recovered the mirror by now, so the retry fences
+      // the write with the revision the Host actually holds.
+      await new Promise((resolve) => setTimeout(resolve, 150))
+      try {
+        ok = await form.mutate(ops as PathOps)
+      } catch {
+        ok = false
+      }
+    }
+    writeState = ok
+      ? { status: 'saved', message: '' }
+      : { status: 'error', message: t('writeFailed') }
+    publish()
+    return ok
+  }
+
   const setField = (m: ModalityKey, field: keyof ModalityState, value: string) => {
-    void form.mutate([{ op: 'set', path: [m, field], value }])
+    void runWrite([{ op: 'set', path: [m, field], value }])
   }
 
   const setWhole = (m: ModalityKey, value: ModalityState) => {
@@ -598,7 +679,7 @@ export function apply(ctx: Context): void {
       path: [m, field],
       value: value[field] ?? '',
     }))
-    void form.mutate(ops)
+    void runWrite(ops)
   }
 
   const resetModality = (m: ModalityKey) => {
@@ -606,7 +687,7 @@ export function apply(ctx: Context): void {
       op: 'unset' as const,
       path: [m, field],
     }))
-    void form.mutate(ops)
+    void runWrite(ops)
   }
 
   // Stay registered exactly while the Host serves the `llm-multimodal`

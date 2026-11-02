@@ -42,6 +42,10 @@ export interface LocaleDict {
   loadModelsFailed: string
   noModelsHint: string
   resetToNone: string
+  writeSaving: string
+  writeSaved: string
+  writeFailed: string
+  currentModelOption: string
 }
 
 export const zh: LocaleDict = {
@@ -79,6 +83,10 @@ export const zh: LocaleDict = {
   loadModelsFailed: '加载模型列表失败',
   noModelsHint: '「llm-pi-ai」中没有已配置的模型。直接选「自定义」即可接入。',
   resetToNone: '取消选择',
+  writeSaving: '保存中…',
+  writeSaved: '已保存',
+  writeFailed: '保存失败（Host 拒绝了这次写入），请重试',
+  currentModelOption: '当前配置',
 }
 
 export const en: LocaleDict = {
@@ -116,4 +124,8 @@ export const en: LocaleDict = {
   loadModelsFailed: 'Failed to load model list',
   noModelsHint: 'No models configured under "llm-pi-ai". Pick "Custom" to define one.',
   resetToNone: 'Clear selection',
+  writeSaving: 'Saving…',
+  writeSaved: 'Saved',
+  writeFailed: 'Save failed (the Host refused the write), please retry',
+  currentModelOption: 'current',
 }
