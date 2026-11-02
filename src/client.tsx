@@ -1,12 +1,20 @@
 /**
  * dsh-llm-multimodal — client half (browser).
  *
- * Registers one card under the host's "Settings → 插件" tab. The card is a
- * self-contained React component (no shared UI primitives import — see
- * `references/dsh-client-ui-internal-symbols-not-esm-importable.md` for why
- * that always fails) bound to the `llm-multimodal` settings namespace.
+ * Registers one card on the host's Plugins page (`plugins.item` slot), the
+ * way `@deepseek-ai/dsh-client-ui-settings-agent-loop` does on DSH 0.2.x:
  *
- * UI shape per modality (text / image / video / tts / music):
+ *   1. `inject` asks for `slots`, `locale` and `configForms`.
+ *   2. `ctx.configForms.get('llm-multimodal')` returns the Host-owned form
+ *      controller for this plugin's settings namespace (the profile entry id
+ *      in `cordis.patch.yml`).
+ *   3. `ctx.configForms.whileServed(['llm-multimodal'], …)` keeps the
+ *      registration alive exactly while the Host serves that namespace, so a
+ *      deployment without the plugin shows no trace of the card.
+ *   4. The slot entry registers under `plugins.item` with `id:
+ *      'llm-multimodal'` — the id the Plugins page lists and dispatches on.
+ *
+ * UI shape per modality (text / image / video / vision / tts / music):
  *
  *   1. A `<select>` whose first option is "自定义" and whose remaining
  *      options come from `GET /api/llm-multimodal/models` (auto-discovered
@@ -19,16 +27,10 @@
  *      `defaultModel` is editable (baseURL/apiKey are inherited from
  *      llm-pi-ai at tool-call time via `applyOverride()`).
  *
- * Persistence: every change calls `scope.set(field, value)` and forgets
- * the promise — UI never blocks on disk writes. The host's serialized
- * write queue handles ordering; the latest revision fences conflicts.
- * `scope.subscribe` rerenders on commit.
- *
- * Custom-path caveat: the client `SettingsScope.set(field, value)` API
- * takes a single path segment, not a dotted path. We therefore write the
- * whole modality object via `scope.set('image', {…})` when the user picks
- * "自定义", since that's how the host's `mutate()` path-op applies
- * recursively (see `applyPathOp` in dsh-settings/lib/index.js).
+ * Persistence: every change is one atomic `form.mutate([...])` against the
+ * Host namespace. The controller serialises the writes, fences them with the
+ * namespace revision and folds the accepted values back into the mirror, so
+ * the card re-renders from the Host's own view.
  */
 
 import {
@@ -36,16 +38,12 @@ import {
   Fragment,
   useCallback,
   useEffect,
-  useMemo,
   useState,
   type ReactElement,
 } from 'react'
 import type { Context } from './context-types.ts'
 import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
-// SettingsScope moved to dsh-client-ui-settings/client in DSH 0.1.2; only used
-// as a type here so we pull it as a type-only import (erased at build time).
-import type { SettingsScope } from '@deepseek-ai/dsh-client-ui-settings/client'
-import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
+import type { ConfigForm } from '@deepseek-ai/dsh-client-ui-settings/client'
 import { zh, en, type LocaleDict } from './client/locales.ts'
 import { ensureStyles } from './client/styles.ts'
 
@@ -53,13 +51,45 @@ export const name = 'dsh-llm-multimodal-client'
 export const inject = [
   'slots',
   'locale',
-  'settingsScope',
+  'configForms',
 ]
 
+/** Dictionary namespace owned by this card. */
 export const NS = 'llm-multimodal.card'
 
-type ModalityKey = 'text' | 'image' | 'video' | 'tts' | 'music'
-const MODALITY_ORDER: ModalityKey[] = ['text', 'image', 'video', 'tts', 'music']
+/**
+ * The Host-side settings namespace this card edits. It is the profile entry
+ * id declared in `cordis.patch.yml` and the `Config` schema the host
+ * validates the entry against.
+ */
+export const SETTINGS_NAMESPACE = 'llm-multimodal'
+
+type ModalityKey = 'text' | 'image' | 'video' | 'vision' | 'tts' | 'music'
+const MODALITY_ORDER: ModalityKey[] = ['text', 'image', 'video', 'vision', 'tts', 'music']
+
+/**
+ * Field names of the host `Config` schema, per modality. The Host only
+ * accepts writes that address a *volatile leaf*, so every write is expanded
+ * into one op per leaf — a section-level write (`["image"]`) is rejected by
+ * `isVolatilePath()`.
+ */
+const MODEL_FIELDS: Array<keyof ModalityState> = [
+  'provider',
+  'apiProtocol',
+  'baseURL',
+  'apiKey',
+  'defaultModel',
+]
+const AUDIO_FIELDS: Array<keyof ModalityState> = [...MODEL_FIELDS, 'voice']
+const MODALITY_FIELDS: Record<ModalityKey, Array<keyof ModalityState>> = {
+  text: MODEL_FIELDS,
+  image: MODEL_FIELDS,
+  video: MODEL_FIELDS,
+  vision: MODEL_FIELDS,
+  tts: AUDIO_FIELDS,
+  music: AUDIO_FIELDS,
+}
+
 
 interface ModalityState {
   provider: string
@@ -85,6 +115,7 @@ interface CardSnapshot {
   text: ModalityState
   image: ModalityState
   video: ModalityState
+  vision: ModalityState
   tts: ModalityState
   music: ModalityState
 }
@@ -102,7 +133,7 @@ interface ModelsSnapshot {
 
 const EMPTY_MODELS: ModelsSnapshot = {
   providers: [],
-  byModality: { text: [], image: [], video: [], tts: [], music: [] },
+  byModality: { text: [], image: [], video: [], vision: [], tts: [], music: [] },
 }
 
 function coerceModality(v: unknown): ModalityState {
@@ -118,8 +149,9 @@ function coerceModality(v: unknown): ModalityState {
   }
 }
 
-function projectSnapshot(scope: SettingsScope<unknown>): CardSnapshot {
-  const snap = scope.getSnapshot()
+/** Project the Host form snapshot into the card's own view model. */
+function projectSnapshot(form: ConfigForm<unknown>): CardSnapshot {
+  const snap = form.getSnapshot()
   const value = (snap.value ?? {}) as Record<string, unknown>
   return {
     available: snap.status === 'ready',
@@ -127,6 +159,7 @@ function projectSnapshot(scope: SettingsScope<unknown>): CardSnapshot {
     text: coerceModality(value.text),
     image: coerceModality(value.image),
     video: coerceModality(value.video),
+    vision: coerceModality(value.vision),
     tts: coerceModality(value.tts),
     music: coerceModality(value.music),
   }
@@ -298,17 +331,17 @@ function ModalitySection(props: {
   )
 }
 
-type SettingsCardProps = PropsLocale<typeof NS> & {
-  useLlmMultimodal: <R>(selector: (snapshot: CardSnapshot) => R) => R
-  setField: (modality: ModalityKey, field: keyof ModalityState, value: string) => void
-  setWhole: (modality: ModalityKey, value: ModalityState) => void
-  reset: (modality: ModalityKey) => void
-}
-
-function SettingsCard(props: SettingsCardProps): ReactElement | null {
-  const { t, setField, setWhole, reset } = props
-  const snap = props.useLlmMultimodal((s) => s)
-  const [open, setOpen] = useState(false)
+/**
+ * Loads the model catalog the Host discovers from `llm-pi-ai`.
+ *
+ * The catalog is only needed once the user can see a picker, so the fetch
+ * starts when `enabled` flips to true.
+ */
+function useModelCatalog(enabled: boolean): {
+  models: ModelsSnapshot
+  loadingModels: boolean
+  loadError: string
+} {
   const [models, setModels] = useState<ModelsSnapshot>(EMPTY_MODELS)
   const [loadingModels, setLoadingModels] = useState(false)
   const [loadError, setLoadError] = useState('')
@@ -326,6 +359,7 @@ function SettingsCard(props: SettingsCardProps): ReactElement | null {
             text: data.byModality.text ?? [],
             image: data.byModality.image ?? [],
             video: data.byModality.video ?? [],
+            vision: data.byModality.vision ?? [],
             tts: data.byModality.tts ?? [],
             music: data.byModality.music ?? [],
           },
@@ -340,34 +374,124 @@ function SettingsCard(props: SettingsCardProps): ReactElement | null {
     }
   }, [])
 
-  // Refresh model catalog when the card is first opened.
   useEffect(() => {
-    if (open && models.providers.length === 0 && !loadingModels) {
+    if (enabled && models.providers.length === 0 && !loadingModels) {
       void reloadModels()
     }
-  }, [open, models.providers.length, loadingModels, reloadModels])
+  }, [enabled, models.providers.length, loadingModels, reloadModels])
 
-  // TEMP DEBUG — expose raw scope and props so we can probe from devtools
-  if (typeof window !== 'undefined') {
-    const w = window as any
-    if (!w.__dsh_llmm_debug) w.__dsh_llmm_debug = { count: 0 }
-    w.__dsh_llmm_debug.count++
-    w.__dsh_llmm_debug.last_snap = snap
-    w.__dsh_llmm_debug.last_props = { setField, setWhole, reset }
-    w.__dsh_llmm_debug.last_snap_value = snap
-  }
+  return { models, loadingModels, loadError }
+}
 
-  // if (!snap.available) return null
+interface PickerProps {
+  t: (key: keyof LocaleDict) => string
+  snap: CardSnapshot
+  models: ModelsSnapshot
+  loadingModels: boolean
+  loadError: string
+  setField: (modality: ModalityKey, field: keyof ModalityState, value: string) => void
+  setWhole: (modality: ModalityKey, value: ModalityState) => void
+  reset: (modality: ModalityKey) => void
+}
+
+/**
+ * The per-modality model pickers.
+ *
+ * Shared by the Plugins page card and the Plugins settings tab, so the same
+ * controls are reachable from both entries.
+ */
+function ModelPicker(props: PickerProps): ReactElement {
+  const { t, snap, models } = props
   const writable = snap.writable
-  const disabled = !writable
-
   const sectionLabel: Record<ModalityKey, string> = {
     text: t('sectionText'),
     image: t('sectionImage'),
     video: t('sectionVideo'),
+    vision: t('sectionVision'),
     tts: t('sectionTts'),
     music: t('sectionMusic'),
   }
+
+  return h(
+    Fragment,
+    null,
+    !writable ? h('p', { className: 'dsh-llmm-read-only', role: 'status' }, t('readOnly')) : null,
+    props.loadingModels ? h('p', { className: 'dsh-llmm-hint' }, t('loadingModels')) : null,
+    props.loadError ? h('p', { className: 'dsh-llmm-hint' }, `${t('loadModelsFailed')}: ${props.loadError}`) : null,
+    h(
+      'ul',
+      { className: 'dsh-llmm-section-list' },
+      ...MODALITY_ORDER.map((m) => {
+        const presets = models.byModality[m] ?? []
+        const presetOptions = presets.map((p) => ({
+          value: `${p.provider}:${p.id}`,
+          label: `${p.provider} / ${p.name || p.id}`,
+        }))
+        return h(ModalitySection, {
+          key: m,
+          modality: m,
+          label: sectionLabel[m],
+          state: snap[m],
+          presetOptions,
+          hasAnyPreset: presets.length > 0,
+          t,
+          writable,
+          onDropdownChange: (val: string) => {
+            if (val === '') {
+              props.reset(m)
+              return
+            }
+            if (val === 'custom') {
+              props.setWhole(m, {
+                provider: 'custom',
+                apiProtocol: snap[m].apiProtocol,
+                baseURL: snap[m].baseURL,
+                apiKey: snap[m].apiKey,
+                defaultModel: snap[m].defaultModel,
+                voice: snap[m].voice,
+              })
+              return
+            }
+            const splitIdx = val.indexOf(':')
+            const pid = splitIdx > 0 ? val.slice(0, splitIdx) : val
+            const modelId = splitIdx > 0 ? val.slice(splitIdx + 1) : ''
+            props.setWhole(m, {
+              provider: pid,
+              apiProtocol: '',
+              baseURL: '',
+              apiKey: '',
+              defaultModel: modelId,
+              voice: snap[m].voice,
+            })
+          },
+          onFieldChange: (field: keyof ModalityState, value: string) => props.setField(m, field, value),
+          onReset: () => props.reset(m),
+        })
+      }),
+    ),
+  )
+}
+
+interface SettingsCardProps {
+  t: (key: keyof LocaleDict) => string
+  /** The page asks for "summary" (a one-liner) or "page" (the whole card). */
+  view?: string
+  useLlmMultimodal: <R>(selector: (snapshot: CardSnapshot) => R) => R
+  setField: (modality: ModalityKey, field: keyof ModalityState, value: string) => void
+  setWhole: (modality: ModalityKey, value: ModalityState) => void
+  reset: (modality: ModalityKey) => void
+}
+
+function SettingsCard(props: SettingsCardProps): ReactElement | null {
+  const { t, setField, setWhole, reset } = props
+  const snap = props.useLlmMultimodal((s) => s)
+  const isPage = props.view !== 'summary'
+  const [open, setOpen] = useState(isPage)
+  const catalog = useModelCatalog(open)
+
+  // The Plugins page renders this slot twice: once as the card's one-liner
+  // and once as the plugin's own page.
+  if (props.view === 'summary') return h('span', { className: 'dsh-llmm-summary' }, t('description'))
 
   return h(
     'li',
@@ -395,126 +519,138 @@ function SettingsCard(props: SettingsCardProps): ReactElement | null {
         }),
       ),
     ),
-    open ? h(Fragment, null,
-      disabled ? h('p', { className: 'dsh-llmm-read-only', role: 'status' }, t('readOnly')) : null,
-      loadingModels ? h('p', { className: 'dsh-llmm-hint' }, t('loadingModels')) : null,
-      loadError ? h('p', { className: 'dsh-llmm-hint' }, `${t('loadModelsFailed')}: ${loadError}`) : null,
-      h('ul', { className: 'dsh-llmm-section-list' },
-        ...MODALITY_ORDER.map((m) => {
-          const presets = models.byModality[m] ?? []
-          const presetOptions = presets.map((p) => ({
-            value: `${p.provider}:${p.id}`,
-            label: `${p.provider} / ${p.name || p.id}`,
-          }))
-          return h(ModalitySection, {
-            key: m,
-            modality: m,
-            label: sectionLabel[m],
-            state: snap[m],
-            presetOptions,
-            hasAnyPreset: presets.length > 0,
-            t,
-            writable,
-            onDropdownChange: (val: string) => {
-              if (val === '') {
-                reset(m)
-                return
-              }
-              if (val === 'custom') {
-                setWhole(m, {
-                  provider: 'custom',
-                  apiProtocol: snap[m].apiProtocol,
-                  baseURL: snap[m].baseURL,
-                  apiKey: snap[m].apiKey,
-                  defaultModel: snap[m].defaultModel,
-                  voice: snap[m].voice,
-                })
-                return
-              }
-              const splitIdx = val.indexOf(':')
-              const pid = splitIdx > 0 ? val.slice(0, splitIdx) : val
-              const modelId = splitIdx > 0 ? val.slice(splitIdx + 1) : ''
-              setWhole(m, {
-                provider: pid,
-                apiProtocol: '',
-                baseURL: '',
-                apiKey: '',
-                defaultModel: modelId,
-                voice: snap[m].voice,
-              })
-            },
-            onFieldChange: (field: keyof ModalityState, value: string) => setField(m, field, value),
-            onReset: () => reset(m),
-          })
-        }),
-      ),
-    ) : null,
+    open ? h(ModelPicker, {
+      t,
+      snap,
+      models: catalog.models,
+      loadingModels: catalog.loadingModels,
+      loadError: catalog.loadError,
+      setField,
+      setWhole,
+      reset,
+    }) : null,
+  )
+}
+
+/**
+ * The same pickers, mounted as a page inside the host's Plugins settings
+ * section (`settings.plugins.tab`).
+ *
+ * The Plugins page card and this tab share one body, so the models can be
+ * configured from either entry.
+ */
+function SettingsTab(props: SettingsCardProps): ReactElement {
+  const { t, setField, setWhole, reset } = props
+  const snap = props.useLlmMultimodal((s) => s)
+  const catalog = useModelCatalog(true)
+  return h(
+    'div',
+    { className: 'dsh-llmm-card dsh-llmm-card-open' },
+    h(ModelPicker, {
+      t,
+      snap,
+      models: catalog.models,
+      loadingModels: catalog.loadingModels,
+      loadError: catalog.loadError,
+      setField,
+      setWhole,
+      reset,
+    }),
   )
 }
 
 export function apply(ctx: Context): void {
   ensureStyles()
+  const t = ctx.locale.bind(NS)
   ctx.effect(
     () => ctx.locale.register(NS, { zh, en }),
     'dsh-llm-multimodal: dictionaries',
   )
 
-  const scope = ctx.settingsScope.bind({ namespace: 'llm-multimodal' }) as SettingsScope<unknown>
+  // The Host-owned form for this plugin's settings namespace. Its snapshot
+  // carries the accepted values, the namespace revision and the writability
+  // flag; its writes go straight back to the profile patch.
+  const form = ctx.configForms.get<Record<string, unknown>>(SETTINGS_NAMESPACE)
 
-  const project = () => projectSnapshot(scope)
+  const project = () => projectSnapshot(form)
   const store = createSnapshotStore(project()) as SnapshotStore<CardSnapshot>
-  scope.subscribe(() => { store.set(project()) })
+  ctx.effect(() => {
+    const off = form.subscribe(() => store.set(project()))
+    return () => {
+      off()
+      void form.dispose?.()
+    }
+  }, 'dsh-llm-multimodal: form subscription')
 
-  const setField = useCallbackForApply((m: ModalityKey, field: keyof ModalityState, value: string) => {
-    // Read current section, replace one field, write the whole section back.
-    // (The client SettingsScope API only takes a single-segment path, not a
-    // dotted path; rewriting the whole modality section is the simplest way
-    // to handle nested fields without losing other fields.)
-    const cur = coerceModality(((scope.getSnapshot().value ?? {}) as Record<string, unknown>)[m])
-    const next: ModalityState = { ...cur, [field]: value }
-    void scope.set(m, next)
-  }, [scope])
+  // One atomic Host write per user action. The controller serialises them,
+  // fences each with the namespace revision and folds the accepted values
+  // back into the mirror the card reads from.
+  //
+  // The Host only accepts paths that address a volatile *leaf*, so a
+  // "whole section" write is expanded into one op per field.
+  const setField = (m: ModalityKey, field: keyof ModalityState, value: string) => {
+    void form.mutate([{ op: 'set', path: [m, field], value }])
+  }
 
-  const setWhole = useCallbackForApply((m: ModalityKey, value: ModalityState) => {
-    void scope.set(m, value)
-  }, [scope])
+  const setWhole = (m: ModalityKey, value: ModalityState) => {
+    const ops = MODALITY_FIELDS[m].map((field) => ({
+      op: 'set' as const,
+      path: [m, field],
+      value: value[field] ?? '',
+    }))
+    void form.mutate(ops)
+  }
 
-  const resetModality = useCallbackForApply((m: ModalityKey) => {
-    void scope.unset(m)
-  }, [scope])
+  const resetModality = (m: ModalityKey) => {
+    const ops = MODALITY_FIELDS[m].map((field) => ({
+      op: 'unset' as const,
+      path: [m, field],
+    }))
+    void form.mutate(ops)
+  }
 
-  // slots / locale / settingsScope are all on the inject list (the cordis
-  // fiber parks until each is provided by some entry's apply()), so we can
-  // read them directly via ctx.X.
-  ctx.slots.inject('settings.plugin.item', () => ctx.slots.register({
-    name: 'settings.plugin.item',
-    // The card key MUST match the settings namespace name; the host settings UI
-    // dispatches this slot per-namespace (`renderSlot(..., {entryKey: ns})`).
-    key: 'llm-multimodal',
-    locale: NS,
-    inject: () => ({
-      hooks: { llmMultimodal: store },
-      setField,
-      setWhole,
-      reset: resetModality,
-    }),
-  }, SettingsCard))
-}
+  // Stay registered exactly while the Host serves the `llm-multimodal`
+  // namespace, so a deployment without this plugin shows no trace of it.
+  ctx.effect(
+    () => ctx.configForms.whileServed([SETTINGS_NAMESPACE], () =>
+      ctx.slots.inject('plugins.item', () =>
+        ctx.slots.register({
+          name: 'plugins.item',
+          // The id the Plugins page lists and dispatches the slot by.
+          id: SETTINGS_NAMESPACE,
+          order: 40,
+          label: () => t('title'),
+          locale: NS,
+          inject: () => ({
+            hooks: { llmMultimodal: store },
+            setField,
+            setWhole,
+            reset: resetModality,
+          }),
+        }, SettingsCard))),
+    'dsh-llm-multimodal: page',
+  )
 
-/**
- * Apply runs once per plugin activation, NOT inside a React render. We
- * still want stable handler references so that the registered slot's
- * `inject()` factory doesn't churn when its subscribers fire. A simple
- * memoized closure tied to `scope` is enough — `scope` itself is stable
- * for the lifetime of the plugin.
- */
-function useCallbackForApply<T extends (...args: any[]) => any>(fn: T, _deps: any[]): T {
-  return useMemoStable(fn)
-}
-
-function useMemoStable<T>(fn: T): T {
-  // Plain stable alias — apply() is invoked exactly once, so we don't
-  // need a real useMemo; this keeps the code small and lets the same
-  // closure be reused across the two registry slots.
-  return fn
+  // The same page inside the host's Plugins settings section, so the models
+  // are configurable from Settings → Plugins as well as from the Plugins
+  // page itself.
+  ctx.effect(
+    () => ctx.configForms.whileServed([SETTINGS_NAMESPACE], () =>
+      ctx.slots.inject('settings.plugins.tab', () =>
+        ctx.slots.register({
+          name: 'settings.plugins.tab',
+          // The id the Plugins settings section lists the tab by.
+          id: SETTINGS_NAMESPACE,
+          order: 20,
+          label: () => t('title'),
+          locale: NS,
+          inject: () => ({
+            hooks: { llmMultimodal: store },
+            setField,
+            setWhole,
+            reset: resetModality,
+          }),
+        }, SettingsTab))),
+    'dsh-llm-multimodal: settings tab',
+  )
 }

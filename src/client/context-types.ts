@@ -2,11 +2,14 @@
  * Minimal type definitions for the cordis-shaped Context the DSH client
  * runtime injects into plugin apply() functions. We only type what we use
  * to keep the source free of the full cordis TypeScript surface.
+ *
+ * DSH 0.2.x replaces the old `settingsScope` service with `configForms`:
+ * the Host owns the settings namespace, hands out a form controller and
+ * applies every write through `settings.mutate` on the host side.
  */
 
 import type { ReactElement } from 'react'
-import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
-import type { SettingsScope } from '@deepseek-ai/dsh-client-ui-settings/client'
+import type { ConfigForm } from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { LocaleDict } from './locales.ts'
 
 type SlotRegistrar<T> = (descriptor: {
@@ -20,7 +23,16 @@ type SlotRegistrar<T> = (descriptor: {
 }, component: (props: any) => ReactElement | null) => () => void
 
 export interface Context {
-  settingsScope: { bind<T>(spec: { namespace: string }): SettingsScope<T> }
+  /** Host-owned settings forms (DSH 0.2.x `configForms` service). */
+  configForms: {
+    /** Form controller for one settings namespace (the profile entry id). */
+    get<T>(entryId: string): ConfigForm<T>
+    /** Run `register` while the Host serves any of `namespaces`. */
+    whileServed(
+      namespaces: readonly string[],
+      register: (served: ReadonlySet<string>) => () => void,
+    ): () => void
+  }
   locale: {
     register(ns: string, dict: { zh: LocaleDict; en: LocaleDict }): () => void
     bind(ns: string): (key: keyof LocaleDict) => string
@@ -30,13 +42,7 @@ export interface Context {
     register: SlotRegistrar<unknown>
   }
   effect(fn: () => unknown, key: string): () => void
-  /**
-   * SnapshotStore from dsh-client-runtime — declared here as a structural
-   * type so the imports stay local. The plugin gets the actual instance
-   * passed via the `hooks` slot inject prop.
-   */
-  __hooks?: { llmMultimodal?: SnapshotStore<any> }
 }
 
-// Local re-export so the type above is reachable without runtime cost.
-export type { SettingsScope, SnapshotStore }
+// Local re-export so the types above are reachable without runtime cost.
+export type { ConfigForm }

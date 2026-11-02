@@ -21,6 +21,7 @@ export interface LocaleDict {
   sectionText: string
   sectionImage: string
   sectionVideo: string
+  sectionVision: string
   sectionTts: string
   sectionMusic: string
   apiProtocol: string
@@ -57,6 +58,7 @@ export const zh: LocaleDict = {
   sectionText: '文本',
   sectionImage: '图像',
   sectionVideo: '视频',
+  sectionVision: '视觉理解',
   sectionTts: '语音合成',
   sectionMusic: '音乐 / 音效',
   apiProtocol: 'API 协议',
@@ -93,6 +95,7 @@ export const en: LocaleDict = {
   sectionText: 'Text',
   sectionImage: 'Image',
   sectionVideo: 'Video',
+  sectionVision: 'Vision',
   sectionTts: 'Speech (TTS)',
   sectionMusic: 'Music / Sound',
   apiProtocol: 'API Protocol',
