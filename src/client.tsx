@@ -173,6 +173,11 @@ function coerceModality(v: unknown): ModalityState {
   }
 }
 
+/** Field-wise equality for one modality section (used to retire a local draft). */
+function modalityEquals(m: ModalityKey, a: ModalityState, b: ModalityState): boolean {
+  return MODALITY_FIELDS[m].every((field) => (a[field] ?? '') === (b[field] ?? ''))
+}
+
 /** Project the Host form snapshot into the card's own view model. */
 function projectSnapshot(form: ConfigForm<unknown>): CardSnapshot {
   const snap = form.getSnapshot()
@@ -347,10 +352,13 @@ function ModalitySection(props: {
         }),
         h('span', { className: 'dsh-llmm-hint' }, props.t('voiceHint')),
       ),
+      // An empty bucket is the normal state for a modality the configured
+      // providers simply do not serve (no speech model at all, say). Say so
+      // instead of showing a dropdown with nothing but the placeholder.
       !props.hasAnyPreset && !props.state.provider && h(
         'p',
         { className: 'dsh-llmm-hint' },
-        props.t('noModelsHint'),
+        `${props.label}: ${props.t('noModelsHint')}`,
       ),
     ),
   )
@@ -1025,11 +1033,41 @@ export function apply(ctx: Context): void {
   // write leaves that snapshot untouched, so the card needs its own channel to
   // tell the user what happened.
   let writeState: WriteState = IDLE_WRITE
-  const project = (): CardSnapshot => ({ ...projectSnapshot(form), write: writeState })
+  // Selection made in this card, held until the Host snapshot catches up.
+  //
+  // `mutate()` writes the profile patch, but the Host does not always push a
+  // fresh snapshot back to the writer that made the change. Projecting only
+  // `form.getSnapshot()` therefore showed the *old* value right after a
+  // successful write — the dropdown snapped back to “choose a model” and the
+  // selection looked lost. A draft per modality is published immediately and
+  // retired as soon as the snapshot agrees with it, so the card is correct
+  // whether or not the Host echo arrives.
+  const draft: Partial<Record<ModalityKey, ModalityState>> = {}
+  const baseSnapshot = (): CardSnapshot => projectSnapshot(form)
+  const project = (): CardSnapshot => {
+    const base = baseSnapshot()
+    const merged: CardSnapshot = { ...base, write: writeState }
+    for (const m of MODALITY_ORDER) {
+      const local = draft[m]
+      if (local) merged[m] = { ...local, voice: local.voice ?? base[m].voice }
+    }
+    return merged
+  }
+  /** Drop drafts the Host snapshot already agrees with. */
+  const retireSettledDrafts = (): void => {
+    const base = baseSnapshot()
+    for (const m of MODALITY_ORDER) {
+      const local = draft[m]
+      if (local && modalityEquals(m, base[m], local)) delete draft[m]
+    }
+  }
   const store = createSnapshotStore(project()) as SnapshotStore<CardSnapshot>
   const publish = () => store.set(project())
   ctx.effect(() => {
-    const off = form.subscribe(publish)
+    const off = form.subscribe(() => {
+      retireSettledDrafts()
+      publish()
+    })
     return () => {
       off()
       void form.dispose?.()
@@ -1048,9 +1086,32 @@ export function apply(ctx: Context): void {
    * happened".
    */
   type PathOp = { op: 'set'; path: string[]; value: string } | { op: 'unset'; path: string[] }
+
+  /**
+   * Apply the ops through the plugin's HTTP settings route.
+   *
+   * Exists purely as a fallback for the card: the Host form refuses a write
+   * when its namespace revision moved on, and a controller that keeps
+   * resending a stale revision turns every selection into a no-op.
+   */
+  const postSettingsOps = async (ops: PathOp[]): Promise<boolean> => {
+    try {
+      const res = await fetch('/api/llm-multimodal/settings/mutate', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ ops }),
+      })
+      if (!res.ok) return false
+      const payload = (await res.json()) as { ok?: boolean }
+      return payload?.ok === true
+    } catch {
+      return false
+    }
+  }
+
   type PathOps = Parameters<ConfigForm<unknown>['mutate']>[0]
 
-  const runWrite = async (ops: PathOp[]): Promise<boolean> => {
+  const runWrite = async (ops: PathOp[], rollback?: () => void): Promise<boolean> => {
     writeState = { status: 'saving', message: '' }
     publish()
     let ok = false
@@ -1059,15 +1120,33 @@ export function apply(ctx: Context): void {
     } catch {
       ok = false
     }
-    if (!ok) {
+    for (const delay of [120, 400]) {
+      if (ok) break
       // The controller has recovered the mirror by now, so the retry fences
       // the write with the revision the Host actually holds.
-      await new Promise((resolve) => setTimeout(resolve, 150))
+      await new Promise((resolve) => setTimeout(resolve, delay))
       try {
         ok = await form.mutate(ops as PathOps)
       } catch {
         ok = false
       }
+    }
+    // Last resort: the plugin's own settings route applies the very same ops
+    // through the Host's settings provider without revision fencing. A card
+    // whose controller keeps a stale revision would otherwise look dead — the
+    // dropdown simply snapping back to “choose a model”.
+    if (!ok) ok = await postSettingsOps(ops)
+    if (ok) {
+      // Ask the controller for the accepted value; when it has none to give
+      // the local draft keeps the card truthful either way.
+      try {
+        await (form as { reload?: () => Promise<unknown> }).reload?.()
+      } catch {
+        /* a controller without reload() keeps the draft as the source */
+      }
+      retireSettledDrafts()
+    } else {
+      rollback?.()
     }
     writeState = ok
       ? { status: 'saved', message: '' }
@@ -1077,24 +1156,42 @@ export function apply(ctx: Context): void {
   }
 
   const setField = (m: ModalityKey, field: keyof ModalityState, value: string) => {
-    void runWrite([{ op: 'set', path: [m, field], value }])
+    const previous = draft[m]
+    draft[m] = { ...(draft[m] ?? projectSnapshot(form)[m]), [field]: value }
+    publish()
+    void runWrite([{ op: 'set', path: [m, field], value }], () => {
+      if (previous) draft[m] = previous
+      else delete draft[m]
+    })
   }
 
   const setWhole = (m: ModalityKey, value: ModalityState) => {
+    const previous = draft[m]
+    draft[m] = { ...value }
+    publish()
     const ops = MODALITY_FIELDS[m].map((field) => ({
       op: 'set' as const,
       path: [m, field],
       value: value[field] ?? '',
     }))
-    void runWrite(ops)
+    void runWrite(ops, () => {
+      if (previous) draft[m] = previous
+      else delete draft[m]
+    })
   }
 
   const resetModality = (m: ModalityKey) => {
+    const previous = draft[m]
+    draft[m] = { ...EMPTY_MODALITY, voice: projectSnapshot(form)[m].voice }
+    publish()
     const ops = MODALITY_FIELDS[m].map((field) => ({
       op: 'unset' as const,
       path: [m, field],
     }))
-    void runWrite(ops)
+    void runWrite(ops, () => {
+      if (previous) draft[m] = previous
+      else delete draft[m]
+    })
   }
 
   // Stay registered exactly while the Host serves the `llm-multimodal`
