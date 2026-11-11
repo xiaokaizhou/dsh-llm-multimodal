@@ -273,3 +273,18 @@ describe('nativeRouteHint — explain a family served on its own route', () => {
     expect(nativeRouteHint(target, '')).toBeNull()
   })
 })
+
+describe('pickForTool — gemini-* is deferred the same way as claude-*', () => {
+  const gateway = [
+    { provider: 'saygm', id: 'gemini-3.1-flash-lite', name: 'Gemini 3.1 Flash Lite', modalities: ['text', 'vision'], baseURL: 'https://api.saygm.com/v1', apiProtocol: 'openai' },
+    { provider: 'saygm', id: 'gpt-5.6-sol', name: 'GPT 5.6 Sol', modalities: ['text', 'vision'], baseURL: 'https://api.saygm.com/v1', apiProtocol: 'openai' },
+  ]
+
+  it('auto-picks the /chat/completions sibling', () => {
+    expect(pickForTool(gateway, 'vision').model?.id).toBe('gpt-5.6-sol')
+  })
+
+  it('still honours an explicit gemini model', () => {
+    expect(pickForTool(gateway, 'vision', 'gemini-3.1-flash-lite').model?.id).toBe('gemini-3.1-flash-lite')
+  })
+})
