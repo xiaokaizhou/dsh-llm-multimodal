@@ -4,7 +4,7 @@
 
 > **DSH plugin: six generation tools for text / image / video / vision / speech / music, backed by OpenAI-compatible APIs.**
 
-`generate_text` / `generate_image` / `generate_video` / `generate_vision` / `generate_tts` / `generate_music` are auto-discovered from the existing `llm-pi-ai` settings. Any model whose id contains image / flux / dall / imagen / sdxl / realesrgan / juggernaut / photoreal / video / sora / seedance / kling / veo / runway / pika / wan / ltx / cogvideox / seedvr / musetalk / lipsync / vision / qwen-vl / llava / internvl / pixtral / glm-4v / tts / speech / voice / minimax / voxcpm / cosyvoice / music / song / lyric becomes an available tool target automatically.
+`generate_text` / `generate_image` / `generate_video` / `generate_vision` / `generate_tts` / `generate_music` are auto-discovered from the existing `llm-pi-ai` settings. Every model's modalities (text / image / video / vision / tts / music) are resolved by a **layered capability resolver**: a manual pin wins, then the provider's declared metadata, then metadata probed from the provider's own model list, then family rules, and finally a text fallback. A verdict can be corrected by hand in the settings card — see [Model capability resolution](docs/capability-resolution.md).
 
 ## Companion plugins
 
@@ -79,7 +79,7 @@ Parameters: `prompt` (required), `images` (multiple allowed), `model`, `system`,
 ## Configuration
 
 1. Add a provider in **Settings > Models** with a `baseURL` pointing to your API gateway
-2. Make sure the model id contains image / video keywords so the plugin auto-discovers it
+2. Capabilities come from the resolver: the provider's declared `input` / `output` first, then family rules; correct anything it gets wrong in the settings card
 3. Set `apiKeyEnv` in your shell, or fill `apiKey` directly in provider settings
 4. Restart `dsh web`
 
@@ -102,6 +102,41 @@ llm-pi-ai:
           name: Agnes Video
 ```
 
+### Model capability resolution
+
+A model is no longer bucketed into one label by "the id contains some keyword". Each model resolves to a *set* of modalities, by evidence priority:
+
+| Priority | Source | Notes |
+|---|---|---|
+| P0 | Manual override | The set you pin in the settings card — always wins |
+| P1 | Provider declaration | The `input` / `output` metadata carried by the model in `llm-pi-ai` |
+| P2 | Provider metadata | Probed online from `GET {baseURL}/models` (`architecture.modality` / `capabilities`) |
+| P3 | Family rules | Built-in rules plus any custom rule you add (token-boundary regexes) |
+| P4 | Fallback | Nothing matched — treated as `text` |
+
+A model may hold several modalities at once (e.g. `["text","vision"]`). The settings card shows the verdict as multi-label chips with its confidence and the evidence behind it (manual / declared / probed / rule / family / fallback), so every row answers "why is this an image model?".
+
+**Correcting a verdict**: in **Settings > Plugins > llm-multimodal**, tick the model's modality set in place to save it; **Clear override** returns it to automatic resolution. Overrides are persisted to a file keyed by `provider:id`:
+
+```json
+{
+  "overrides": {
+    "acme:gemini-nano-banana-2.1": { "modalities": ["image"], "updatedAt": "2026-11-11T12:00:00.000Z" }
+  },
+  "rules": [
+    { "id": "acme-diffusion", "pattern": "(^|[-_/])acme-diffusion-v\\d+($|[-_])", "modalities": ["image"], "note": "in-house image gateway family" }
+  ]
+}
+```
+
+The file lives at `<profileDir>/llm-multimodal-capabilities.json` (falling back to `~/.dsh/llm-multimodal-capabilities.json` when the profile directory cannot be derived). An empty `modalities` array clears that entry.
+
+**Online probe**: the **Re-probe** button requests `GET {baseURL}/models` once for that provider (with the apiKey, 3 s timeout) and merges the returned modality metadata into the verdict. A failed probe never blocks a call — resolution falls back to declared / rule / fallback.
+
+**An explicit model is never swapped silently**: a `model` argument wins, and when it matches nothing the tool fails with the candidates currently available for that modality instead of quietly using a different model.
+
+> The full design (data structures, HTTP API, migration and known limits) is in [docs/capability-resolution.md](docs/capability-resolution.md).
+
 ## Usage
 
 Call tools directly in DSH chat:
@@ -116,7 +151,7 @@ The tools auto-discover available models from configuration; no extra parameters
 
 ### Speech synthesis and voice cloning
 
-- **Modality-separated models**: `generate_tts` only uses TTS-classified models (id contains `tts/speech/voice/minimax/voxcpm/cosyvoice`); `generate_music` only uses music-classified models (id contains `music/song/lyric`). Neither serves the other
+- **Modality-separated models**: `generate_tts` only uses models resolved as `tts`, and `generate_music` only uses models resolved as `music`; neither serves the other
 - **OpenAI protocol**: the five multimodal tools (image / video / vision / tts / music) speak OpenAI-compatible endpoints; providers default to `apiProtocol: openai`, and an explicit non-OpenAI protocol (e.g. `claude`) is rejected before the call with an actionable message. `generate_text` is exempt — it routes via the harness LlmRuntime (`ctx.llm.prepareCall`)
 - Preset voices: pass a MiniMax preset id (e.g. `female-shaonv` / `male-qn-jingying`) as `voice`, or an existing cloned voice_id
 - Per-character voice (cloning): pass `clone_audio` (reference audio: local path / `file://` / http(s) URL / `data:audio` base64) plus `voice_name` (use the character's name)

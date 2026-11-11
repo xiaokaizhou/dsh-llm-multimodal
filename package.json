@@ -1,7 +1,7 @@
 {
   "name": "dsh-llm-multimodal",
-  "version": "0.3.0",
-  "description": "DSH 插件：提供文本 / 图像 / 视频 / 视觉理解 / 语音 / 音乐 六个生成工具，模型从 llm-pi-ai 自动发现，并在插件设置页提供可视化配置。",
+  "version": "0.4.0",
+  "description": "DSH 插件：提供文本 / 图像 / 视频 / 视觉理解 / 语音 / 音乐 六个生成工具，模型从 llm-pi-ai 自动发现，能力按分层证据解析（声明 / 在线探测 / 家族规则 / 人工覆盖），并在插件设置页提供可视化配置与能力纠正。",
   "type": "module",
   "main": "lib/index.js",
   "files": [

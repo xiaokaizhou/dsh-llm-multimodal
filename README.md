@@ -4,7 +4,7 @@
 
 > **DSH 插件：在聊天中提供文本/图像/视频/视觉理解/语音/音乐 六个生成工具，基于 OpenAI 兼容 API。**
 
-`generate_text` / `generate_image` / `generate_video` / `generate_vision` / `generate_tts` / `generate_music` 六个工具会自动从 `llm-pi-ai` 设置中识别可用模型：模型 id 包含 image / flux / dall / imagen / sdxl / realesrgan / juggernaut / photoreal / video / sora / seedance / kling / veo / runway / pika / wan / ltx / cogvideox / seedvr / musetalk / lipsync / vision / qwen-vl / llava / internvl / pixtral / glm-4v / tts / speech / voice / minimax / voxcpm / cosyvoice / music / song / lyric 等关键词时，工具即可使用。
+`generate_text` / `generate_image` / `generate_video` / `generate_vision` / `generate_tts` / `generate_music` 六个工具会自动从 `llm-pi-ai` 设置中发现可用模型，并用**分层能力解析**判定每个模型支持哪些模态（text / image / video / vision / tts / music）：优先采信人工覆盖与 provider 声明，其次是服务商在线元数据与家族规则，最后兜底为文本。判定结果可在设置卡片里手动纠正 —— 详见[模型能力解析](docs/capability-resolution.md)。
 
 ## 配套插件（互推）
 
@@ -79,7 +79,7 @@ GPT-4o Vision / Claude 3 Vision / Gemini Vision / Qwen-VL / LLaVA / InternVL / P
 ## 配置说明
 
 1. 在「设置 > 模型」中添加一个 provider，`baseURL` 指向你的 API 网关
-2. 在模型 id 中包含 image / video 关键词，插件会自动识别
+2. 模型能力由能力解析器判定：优先读 provider 声明的 `input` / `output`，其次匹配家族规则；判定不准时可在设置卡片里手动纠正
 3. 设置 `apiKeyEnv` 环境变量，或在 provider 配置中直接填写 apiKey
 4. 重启 `dsh web`
 
@@ -101,6 +101,41 @@ llm-pi-ai:
         - id: agnes-video-2.5
           name: Agnes Video
 ```
+
+### 模型能力解析
+
+每个模型不再靠「id 里有某个关键词」单标签归类，而是按证据优先级解析出一组模态：
+
+| 优先级 | 来源 | 说明 |
+|---|---|---|
+| P0 | 人工覆盖 | 你在设置卡片里手动 pin 的能力集合，永远最高 |
+| P1 | provider 声明 | `llm-pi-ai` 里模型自带的 `input` / `output` 元数据 |
+| P2 | 服务商元数据 | 在线探测 `GET {baseURL}/models` 的 `architecture.modality` / `capabilities` |
+| P3 | 家族规则 | 内置家族规则 + 你追加的自定义规则（词元边界正则） |
+| P4 | 兜底 | 都没有时按 `text` 处理 |
+
+模型可以同时具备多个模态（如 `["text","vision"]`），设置卡片里以多标签 chip 展示判定结果、置信度与判定来源（人工覆盖 / 声明 / 服务商 / 规则 / 家族 / 兜底），每一行都能回答「为什么判成这个模态」。
+
+**手动纠正**：在「设置 > 插件 > llm-multimodal」的模型能力区块里，就地勾选该模型的模态集合即可保存；「清除覆盖」会让它回到自动判定。覆盖也写在文件里，键为 `provider:id`：
+
+```json
+{
+  "overrides": {
+    "saygm:gemini-nano-banana-2.1": { "modalities": ["image"], "updatedAt": "2026-11-11T12:00:00.000Z" }
+  },
+  "rules": [
+    { "id": "acme-diffusion", "pattern": "(^|[-_/])acme-diffusion-v\\d+($|[-_])", "modalities": ["image"], "note": "自建图像网关家族" }
+  ]
+}
+```
+
+文件位置：`<profileDir>/llm-multimodal-capabilities.json`（profile 目录推导不出时回落到 `~/.dsh/llm-multimodal-capabilities.json`）。`modalities` 为空数组表示清除该条覆盖。
+
+**在线探测**：设置卡片里的「重新探测」按钮会对该 provider 请求一次 `GET {baseURL}/models`（带 apiKey、3 秒超时），把服务端返回的模态元数据合并进判定；探测失败不阻塞使用，能力判定照常回落到声明 / 规则 / 兜底。
+
+**显式指定模型不会被偷偷换掉**：调用时传入的 `model` 参数优先，未命中就明确报错并列出该模态当前可用候选，不再静默降级到别的模型。
+
+> 完整设计（数据结构、HTTP API、迁移与已知边界）见 [docs/capability-resolution.md](docs/capability-resolution.md)。
 
 ## 使用方式
 

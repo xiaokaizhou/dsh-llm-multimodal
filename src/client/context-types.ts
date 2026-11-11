@@ -22,6 +22,100 @@ type SlotRegistrar<T> = (descriptor: {
   inject?: () => Record<string, unknown>
 }, component: (props: any) => ReactElement | null) => () => void
 
+/**
+ * The six modalities this plugin serves. The same key set names the settings
+ * sections (`text` / `image` / …), the capability verdict's modality list and
+ * the capability matrix's inline editor.
+ */
+export type ModalityKey = 'text' | 'image' | 'video' | 'vision' | 'tts' | 'music'
+
+/**
+ * Where a modality verdict came from, as reported by the server's layered
+ * capability resolution. The levels are ordered from the strongest to the
+ * weakest evidence.
+ *
+ *   override — the user pinned the verdict by hand (persisted server-side)
+ *   declared — the provider's own configuration / model list declares it
+ *   provider — an online probe of the provider's model list
+ *   rule     — an internal family rule matched the model id
+ *   family   — the default verdict of the model's family
+ *   fallback — nothing matched; the generic fallback was used
+ */
+export type CapabilitySourceLevel =
+  | 'override'
+  | 'declared'
+  | 'provider'
+  | 'rule'
+  | 'family'
+  | 'fallback'
+
+/** One piece of evidence behind a modality verdict. */
+export interface CapabilitySource {
+  /** The level this piece of evidence was collected at. */
+  level: string
+  /** Optional identifier of the concrete source (a rule id, a field name…). */
+  id?: string
+  /** Optional human-readable detail, shown as the tag's tooltip. */
+  detail?: string
+}
+
+/**
+ * One model row of the capability matrix.
+ *
+ * The server fills `modalities` / `primary` / `confidence` / `sources`; the
+ * optional fields carry the extra metadata the provider reported.
+ */
+export interface CapabilityModelRow {
+  provider: string
+  id: string
+  name?: string
+  /** The provider's own model type ("chat" / "image" / …). */
+  type?: string
+  /** Every modality the model was judged to serve. */
+  modalities?: ModalityKey[]
+  /** The modality the model is primarily used for. */
+  primary?: string
+  /** How sure the resolver is, 0…1. */
+  confidence?: number
+  /** The evidence behind the verdict, strongest first. */
+  sources?: CapabilitySource[]
+  contextWindow?: number
+  maxTokens?: number
+}
+
+/** One provider of the catalog, with the models it offers. */
+export interface CapabilityProviderRow {
+  id: string
+  /** Display name of the provider (newer contract). */
+  name?: string
+  /** Display name of the provider (older contract). */
+  displayName?: string
+  baseURL?: string
+  apiProtocol?: string
+  models?: CapabilityModelRow[]
+}
+
+/** One persisted manual correction, keyed by `"<provider>:<model id>"`. */
+export interface CapabilityOverrideEntry {
+  modalities: string[]
+  updatedAt?: string
+}
+
+/** The payload of `GET /api/llm-multimodal/capabilities`. */
+export interface CapabilitiesSnapshot {
+  overrides: Record<string, CapabilityOverrideEntry>
+  rules: unknown[]
+  file: string
+}
+
+/** The payload of `POST /api/llm-multimodal/detect`. */
+export interface DetectResult {
+  ok?: boolean
+  provider?: string
+  models?: unknown
+  merged?: number | unknown[]
+}
+
 export interface Context {
   /** Host-owned settings forms (DSH 0.2.x `configForms` service). */
   configForms: {

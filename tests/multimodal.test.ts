@@ -186,10 +186,28 @@ describe('pickModel', () => {
     expect(picked.requestedButMissing).toBe(false)
   })
 
-  it('falls back to the first modality match and flags requestedButMissing when the requested id is unknown', () => {
+  // 0.4 contract change: an unknown id is reported, never swapped for a
+  // different model. The caller turns this into a "not found + candidates"
+  // error instead of quietly serving another provider's model.
+  it('returns no model (and flags requestedButMissing) when the requested id is unknown', () => {
     const picked = pickModel(models, 'image', 'no-such-model')
     expect(picked.requestedButMissing).toBe(true)
-    expect(picked.model?.id).toBe('agnes-image-2.1-flash')
+    expect(picked.model).toBeNull()
+  })
+
+  it('honours an explicit id even when it was classified for another modality, and flags the mismatch', () => {
+    // A model the resolver labelled `text` but that the user explicitly asks
+    // for: use it, and let the tool warn. Silently substituting a different
+    // model here was the bug that made generate_vision report model names
+    // nobody asked for.
+    const rows = [
+      ...models,
+      { provider: 'saygm', id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro', type: 'text', modalities: ['text'], baseURL: 'b4', apiKey: 'k4', apiKeyEnv: 'SAYGM' },
+    ]
+    const picked = pickModel(rows, 'image', 'gemini-3.1-pro-preview')
+    expect(picked.model?.id).toBe('gemini-3.1-pro-preview')
+    expect(picked.requestedButMissing).toBe(false)
+    expect(picked.capabilityMismatch).toBe(true)
   })
 
   it('returns { model: null, requestedButMissing: true } when the requested id is unknown AND the modality is empty', () => {
@@ -225,31 +243,29 @@ describe('resolveTextModel', () => {
     expect(r.model).toBe('gpt-4o-mini')
   })
 
-  it('falls back to the first text row AND flags requestedButMissing when the provider is a typo', () => {
-    // "typo/gpt-4o-mini" — model exists but in openai, not typo.
+  // 0.4 contract change: a miss is reported, never replaced by another
+  // model. "deepseek/typo" must not silently become deepseek-chat.
+  it('reports a miss (no substituted model) when the provider half is a typo', () => {
     const r = resolveTextModel(models, 'typo/gpt-4o-mini')
     expect(r.requestedButMissing).toBe(true)
-    expect(r.provider).toBe('deepseek')
-    expect(r.model).toBe('deepseek-chat')
+    expect(r.provider).toBe('')
+    expect(r.model).toBe('')
   })
 
-  it('falls back AND flags requestedButMissing when only the model id is wrong', () => {
-    // "deepseek/typo" — provider matches but the id does not.
+  it('reports a miss (no substituted model) when only the model id is wrong', () => {
     const r = resolveTextModel(models, 'deepseek/typo')
     expect(r.requestedButMissing).toBe(true)
-    expect(r.provider).toBe('deepseek')
-    expect(r.model).toBe('deepseek-chat')
+    expect(r.provider).toBe('')
+    expect(r.model).toBe('')
   })
 
-  it('treats a bare id with NO slash as a missing request', () => {
-    // Without a provider prefix, the user has not specified enough info
-    // to be honoured — we still auto-pick but flag it so the caller
-    // surfaces the warning. This matches the previous behaviour of the
-    // buggy code path (silent swap to first row).
+  it('honours an unambiguous bare id', () => {
+    // "gpt-4o-mini" exists exactly once, so the provider prefix is not
+    // needed — 0.3 treated this as a miss and swapped in the first row.
     const r = resolveTextModel(models, 'gpt-4o-mini')
-    expect(r.requestedButMissing).toBe(true)
-    expect(r.provider).toBe('deepseek')
-    expect(r.model).toBe('deepseek-chat')
+    expect(r.requestedButMissing).toBe(false)
+    expect(r.provider).toBe('openai')
+    expect(r.model).toBe('gpt-4o-mini')
   })
 
   it('returns { provider: "", model: "", requestedButMissing: true } when no text candidate exists AND the id is unknown', () => {

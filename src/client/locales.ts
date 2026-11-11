@@ -46,6 +46,51 @@ export interface LocaleDict {
   writeSaved: string
   writeFailed: string
   currentModelOption: string
+  // ── Model capability matrix ────────────────────────────────────────────
+  capabilityTitle: string
+  capabilityTitleHint: string
+  capabilityLoading: string
+  capabilityLoadFailed: string
+  capabilityEmpty: string
+  capabilityColumnModel: string
+  capabilityColumnModalities: string
+  capabilityColumnConfidence: string
+  capabilityColumnSources: string
+  capabilityConfidence: string
+  capabilityPrimary: string
+  capabilityContextWindow: string
+  capabilityMaxTokens: string
+  capabilityEdit: string
+  capabilitySave: string
+  capabilityCancel: string
+  capabilityClear: string
+  capabilitySaving: string
+  capabilitySaved: string
+  capabilitySaveFailed: string
+  capabilityCleared: string
+  capabilityClearFailed: string
+  capabilityRedetect: string
+  capabilityDetecting: string
+  capabilityDetectDone: string
+  capabilityDetectFailed: string
+  capabilityMerged: string
+  capabilityMergedUnit: string
+  capabilityOverridesFile: string
+  capabilityRules: string
+  capabilityRulesUnit: string
+  capabilityNoOverride: string
+  sourceOverride: string
+  sourceOverrideHint: string
+  sourceDeclared: string
+  sourceDeclaredHint: string
+  sourceProvider: string
+  sourceProviderHint: string
+  sourceRule: string
+  sourceRuleHint: string
+  sourceFamily: string
+  sourceFamilyHint: string
+  sourceFallback: string
+  sourceFallbackHint: string
 }
 
 export const zh: LocaleDict = {
@@ -87,6 +132,51 @@ export const zh: LocaleDict = {
   writeSaved: '已保存',
   writeFailed: '保存失败（Host 拒绝了这次写入），请重试',
   currentModelOption: '当前配置',
+  // ── Model capability matrix ────────────────────────────────────────────
+  capabilityTitle: '模型能力矩阵',
+  capabilityTitleHint: '展示每个模型被判定出的模态、判定来源与置信度。可手动纠正，纠正结果会持久化保存。',
+  capabilityLoading: '加载能力矩阵…',
+  capabilityLoadFailed: '加载能力矩阵失败',
+  capabilityEmpty: '没有可显示的模型。',
+  capabilityColumnModel: '模型',
+  capabilityColumnModalities: '判定模态',
+  capabilityColumnConfidence: '置信度',
+  capabilityColumnSources: '判定来源',
+  capabilityConfidence: '置信度',
+  capabilityPrimary: '主',
+  capabilityContextWindow: '上下文',
+  capabilityMaxTokens: '最大输出',
+  capabilityEdit: '编辑模态',
+  capabilitySave: '保存',
+  capabilityCancel: '取消',
+  capabilityClear: '清除覆盖',
+  capabilitySaving: '保存中…',
+  capabilitySaved: '已保存手动判定',
+  capabilitySaveFailed: '保存手动判定失败',
+  capabilityCleared: '已清除手动判定，恢复自动判定',
+  capabilityClearFailed: '清除手动判定失败',
+  capabilityRedetect: '重新探测',
+  capabilityDetecting: '探测中…',
+  capabilityDetectDone: '探测完成',
+  capabilityDetectFailed: '探测失败',
+  capabilityMerged: '已合并',
+  capabilityMergedUnit: '条服务端元数据',
+  capabilityOverridesFile: '覆盖文件',
+  capabilityRules: '生效规则',
+  capabilityRulesUnit: '条',
+  capabilityNoOverride: '无手动覆盖',
+  sourceOverride: '手动指定',
+  sourceOverrideHint: '你在本卡片手动指定，优先级最高，覆盖所有自动判定。',
+  sourceDeclared: '服务商声明',
+  sourceDeclaredHint: '来自服务商配置或模型列表中显式声明的字段。',
+  sourceProvider: '在线探测',
+  sourceProviderHint: '对服务商的模型列表接口在线探测得到的结果。',
+  sourceRule: '家族规则',
+  sourceRuleHint: '命中内置的模型家族规则（例如 gpt-4o 系列）。',
+  sourceFamily: '家族默认',
+  sourceFamilyHint: '该模型所属家族的默认模态集合。',
+  sourceFallback: '兜底判定',
+  sourceFallbackHint: '没有任何依据时的兜底结果，通常只保留文本。',
 }
 
 export const en: LocaleDict = {
@@ -128,4 +218,49 @@ export const en: LocaleDict = {
   writeSaved: 'Saved',
   writeFailed: 'Save failed (the Host refused the write), please retry',
   currentModelOption: 'current',
+  // ── Model capability matrix ────────────────────────────────────────────
+  capabilityTitle: 'Model capability matrix',
+  capabilityTitleHint: 'Shows every model\'s detected modalities, the evidence behind them and the confidence. Detections can be corrected by hand, and corrections are persisted.',
+  capabilityLoading: 'Loading the capability matrix…',
+  capabilityLoadFailed: 'Failed to load the capability matrix',
+  capabilityEmpty: 'No models to show.',
+  capabilityColumnModel: 'Model',
+  capabilityColumnModalities: 'Detected modalities',
+  capabilityColumnConfidence: 'Confidence',
+  capabilityColumnSources: 'Evidence',
+  capabilityConfidence: 'Confidence',
+  capabilityPrimary: 'primary',
+  capabilityContextWindow: 'Context',
+  capabilityMaxTokens: 'Max output',
+  capabilityEdit: 'Edit modalities',
+  capabilitySave: 'Save',
+  capabilityCancel: 'Cancel',
+  capabilityClear: 'Clear override',
+  capabilitySaving: 'Saving…',
+  capabilitySaved: 'Manual detection saved',
+  capabilitySaveFailed: 'Failed to save the manual detection',
+  capabilityCleared: 'Manual detection cleared, automatic detection restored',
+  capabilityClearFailed: 'Failed to clear the manual detection',
+  capabilityRedetect: 'Re-probe',
+  capabilityDetecting: 'Probing…',
+  capabilityDetectDone: 'Probe finished',
+  capabilityDetectFailed: 'Probe failed',
+  capabilityMerged: 'merged',
+  capabilityMergedUnit: 'server metadata entries',
+  capabilityOverridesFile: 'Override file',
+  capabilityRules: 'Active rules',
+  capabilityRulesUnit: '',
+  capabilityNoOverride: 'No manual override',
+  sourceOverride: 'Manual',
+  sourceOverrideHint: 'Set by you in this card — the strongest evidence, it overrides every automatic detection.',
+  sourceDeclared: 'Declared',
+  sourceDeclaredHint: 'Declared by the provider\'s own configuration or model list.',
+  sourceProvider: 'Probed',
+  sourceProviderHint: 'Collected by probing the provider\'s model list online.',
+  sourceRule: 'Family rule',
+  sourceRuleHint: 'An internal family rule matched this model id.',
+  sourceFamily: 'Family default',
+  sourceFamilyHint: 'The default modality set of the model\'s family.',
+  sourceFallback: 'Fallback',
+  sourceFallbackHint: 'No evidence matched, so the generic fallback was used.',
 }

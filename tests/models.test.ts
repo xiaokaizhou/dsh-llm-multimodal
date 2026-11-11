@@ -8,7 +8,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { writeFile, mkdir } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { buildModelsSnapshot } from '../lib/index.js'
+import { buildModelsSnapshot, pickForTool } from '../lib/index.js'
 
 async function writeYaml(content) {
   const dir = join(tmpdir(), 'llm-multimodal-models-' + Date.now())
@@ -75,7 +75,11 @@ describe('buildModelsSnapshot — provider + per-modality grouping', () => {
     expect(buckets.text.map((m) => m.id).sort()).toEqual(['agnes-text-01', 'gpt-4o-mini'])
     expect(buckets.tts.map((m) => m.id).sort()).toEqual(['minimax-speech-02-hd'])
     expect(buckets.music).toEqual([])
-    expect(buckets.vision).toEqual([])
+    // `gpt-4o-mini` is a *multimodal chat* model: it stays in the text
+    // bucket AND appears under vision. Single-label bucketing could not
+    // express that, which is why `byModality` is now built from
+    // `modalities` instead of `type`.
+    expect(buckets.vision.map((m) => m.id).sort()).toEqual(['gpt-4o-mini'])
 
     // Every model also carries its provider id so the client can render
     // <optgroup> rows per provider.
@@ -157,7 +161,13 @@ describe('buildModelsSnapshot — provider + per-modality grouping', () => {
       'llava-1.5-7b',
       'qwen-vl-plus',
     ])
-    expect(snap.byModality.text.map((m) => m.id).sort()).toEqual(['qwen-7b-chat'])
+    // Vision rows are chat models too, so they also serve generate_text.
+    expect(snap.byModality.text.map((m) => m.id).sort()).toEqual([
+      'gpt-4o-vision',
+      'llava-1.5-7b',
+      'qwen-7b-chat',
+      'qwen-vl-plus',
+    ])
     // Each vision row carries its provider so the UI can render <optgroup>.
     for (const m of snap.byModality.vision) {
       expect(m.provider).toMatch(/openai|qwen|local/)
@@ -196,5 +206,26 @@ describe('buildModelsSnapshot — provider + per-modality grouping', () => {
     // None of them leaked into the wrong bucket.
     expect(snap.byModality.text.find((m) => m.id === 'local-h3')).toBeUndefined()
     expect(snap.byModality.tts.find((m) => m.id === 'local-minimax-h3')).toBeUndefined()
+  })
+})
+
+describe('pickForTool — auto-pick stays callable', () => {
+  const rows = [
+    // A harness-routed provider: listed, but no endpoint to call.
+    { provider: 'minimax-cn', id: 'MiniMax-M3', name: 'MiniMax M3', modalities: ['text', 'vision'], baseURL: '' },
+    { provider: 'saygm', id: 'claude-opus-5', name: 'Claude Opus 5', modalities: ['text', 'vision'], baseURL: 'https://api.saygm.com/v1' },
+  ]
+
+  it('skips a row without baseURL when auto-picking', () => {
+    expect(pickForTool(rows, 'vision').model?.id).toBe('claude-opus-5')
+  })
+
+  it('keeps an explicitly named row so the caller gets the precise error', () => {
+    expect(pickForTool(rows, 'vision', 'MiniMax-M3').model?.id).toBe('MiniMax-M3')
+  })
+
+  it('falls back to the first row when nothing is callable', () => {
+    const noEndpoint = [{ provider: 'x', id: 'y', modalities: ['image'], baseURL: '' }]
+    expect(pickForTool(noEndpoint, 'image').model?.id).toBe('y')
   })
 })

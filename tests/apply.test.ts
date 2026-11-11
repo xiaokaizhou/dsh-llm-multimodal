@@ -304,10 +304,11 @@ describe('plugin apply — graceful fallback when the requested model is missing
     '',
   ].join('\n')
 
-  it('generate_image: when model="flux" is not configured, falls back to the discovered image model and warns (with apiKey missing)', async () => {
-    // No AGNES_API_KEY env var — we want the fallback warning to still
-    // appear prepended to the env-var error so the user understands the
-    // chain of decisions the plugin made on their behalf.
+  // 0.4 contract change: an explicitly requested id that is NOT in the
+  // configured catalogue is an error, not a silent substitution. The error
+  // names the rejected id AND lists what is actually available, so the fix
+  // ("you probably meant agnes-image-2.1-flash") is one glance away.
+  it('generate_image: model="flux" that is not configured is rejected with the candidate list', async () => {
     delete process.env.AGNES_API_KEY
     const { ctx, setYaml, clearYaml } = makeFakeCtx({ yamlSettings: FALLBACK_YAML })
     await setYaml(FALLBACK_YAML)
@@ -321,32 +322,32 @@ describe('plugin apply — graceful fallback when the requested model is missing
         { signal: ac.signal } as never,
       )
       expect(r.success).toBe(false)
-      // The warning must name BOTH the requested id and the fallback model.
+      // Names the id the caller actually asked for...
       expect(r.message).toMatch(/flux/)
+      // ...and shows what is available instead.
       expect(r.message).toMatch(/agnes-image-2\.1-flash/)
-      // And it must mention the missing apiKey env var so the user can fix both issues.
-      expect(r.message).toMatch(/AGNES_API_KEY|环境变量/)
+      expect(r.message).toMatch(/当前候选/)
+      // No model was served, so no "fell back to X" claim either.
+      expect(r.message).not.toMatch(/已自动降级/)
     } finally {
       await clearYaml()
     }
   })
 
-  it('generate_image: when model="flux" is not configured BUT a valid image model exists, the call succeeds and the success message still carries the fallback warning', async () => {
-    // Provide a working API key AND stub fetch to return a valid OpenAI-
-    // style image response. The plugin should fall back to the discovered
-    // image model, return success, AND leave a clear warning in `message`.
+  // Same rule with a working API key and a live-looking fetch stub: the
+  // plugin must not spend the request on a different model just because one
+  // exists. Nothing is sent when the id is unknown.
+  it('generate_image: model="flux" is rejected before any network call even when an image model exists', async () => {
     process.env.AGNES_API_KEY = 'demo-key'
     const origFetch = (globalThis as any).fetch
-    ;(globalThis as any).fetch = async (url: string) => {
+    let calls = 0
+    ;(globalThis as any).fetch = async () => {
+      calls += 1
       return new Response(
         JSON.stringify({ data: [{ url: 'https://cdn.example.com/a.png' }] }),
         { status: 200, headers: { 'content-type': 'application/json' } },
       )
     }
-    // Stub downloadTo's second hop too: it fetches the URL we just returned.
-    // The real downloadTo will hit the network; we let it through (it'll
-    // fail in offline CI) but assert BEFORE the download step by checking
-    // the message that the plugin constructs.
     const { ctx, setYaml, clearYaml } = makeFakeCtx({ yamlSettings: FALLBACK_YAML })
     await setYaml(FALLBACK_YAML)
     try {
@@ -358,17 +359,10 @@ describe('plugin apply — graceful fallback when the requested model is missing
         { prompt: 'a cat', model: 'flux', n: 1, size: '1024x1024' },
         { signal: ac.signal } as never,
       )
-      // The plugin should have selected the discovered model and called the
-      // API. Even if the follow-up download fails (offline), the call is a
-      // "true model fallback success" — what we care about is that the
-      // message carries the warning AND references the fallback model.
-      // (If the download fails, r.success === false but r.message still
-      // carries the warning text we just appended.)
+      expect(r.success).toBe(false)
       expect(r.message).toMatch(/flux/)
       expect(r.message).toMatch(/agnes-image-2\.1-flash/)
-      // The actual model used in the wire call must be the fallback, NOT "flux".
-      // (We can't inspect the request body here, but the message's mention
-      // of agnes-image-2.1-flash is enough proof.)
+      expect(calls).toBe(0)
     } finally {
       ;(globalThis as any).fetch = origFetch
       delete process.env.AGNES_API_KEY
@@ -404,7 +398,7 @@ describe('plugin apply — graceful fallback when the requested model is missing
       expect(r.message).toMatch(/flux/)
       // Should NOT claim "未发现可用的图像模型" alone (without naming the
       // requested id) — the user needs to know which id was rejected.
-      expect(r.message).toMatch(/未找到 id\/name 为 "flux" 的图像模型/)
+      expect(r.message).toMatch(/未找到 id\/name 为 "flux" 的模型/)
     } finally {
       delete process.env.TEXT_KEY
       await clearYaml()
@@ -460,7 +454,10 @@ describe('plugin apply — graceful fallback when the requested model is missing
     '',
   ].join('\n')
 
-  it('generate_text: when model="<typo-provider>/deepseek-chat" is not configured, falls back to deepseek-chat AND surfaces a warning', async () => {
+  // 0.4 contract change: a "<provider>/<model>" request that does not
+  // resolve is reported, never redirected to another model. Both halves are
+  // checked, so a typo in either one fails loudly with the candidate list.
+  it('generate_text: model="<typo-provider>/deepseek-chat" fails with the candidate list and never calls a substitute', async () => {
     process.env.DEEPSEEK_API_KEY = 'demo-key'
     const llm = makeFakeLlm()
     const { ctx, setYaml, clearYaml } = makeFakeCtx({ yamlSettings: TEXT_FALLBACK_YAML, llm })
@@ -474,28 +471,20 @@ describe('plugin apply — graceful fallback when the requested model is missing
         { prompt: 'hi', model: 'typo/deepseek-chat' },
         { signal: ac.signal } as never,
       )
-      // The call should succeed against the fallback (deepseek-chat).
-      expect(r.success).toBe(true)
-      expect(r.text).toBe('hello')
-      // The reported model must be the fallback, NOT the requested id.
-      expect(r.model).toBe('deepseek/deepseek-chat')
-      // The warning field must be populated and name the requested id.
-      expect(typeof r.warning).toBe('string')
-      expect(r.warning).toMatch(/typo\/deepseek-chat/)
-      expect(r.warning).toMatch(/已自动降级/)
-      // The prepareCall must have been invoked for the fallback pair.
-      expect(llm.calls.length).toBe(1)
-      expect(llm.calls[0].provider).toBe('deepseek')
-      expect(llm.calls[0].model).toBe('deepseek-chat')
+      expect(r.success).toBe(false)
+      expect(r.message).toMatch(/typo\/deepseek-chat/)
+      expect(r.message).toMatch(/当前候选/)
+      // The configured chat model is offered as a candidate, not used.
+      expect(r.message).toMatch(/deepseek:deepseek-chat/)
+      // Nothing was sent to any provider.
+      expect(llm.calls.length).toBe(0)
     } finally {
       delete process.env.DEEPSEEK_API_KEY
       await clearYaml()
     }
   })
 
-  it('generate_text: when model="deepseek/<typo>" is not configured, falls back to the discovered text model AND surfaces a warning', async () => {
-    // Mirror case: provider matches, model id is wrong. Same fallback +
-    // warning behaviour as the typo-provider case.
+  it('generate_text: model="deepseek/<typo>" fails the same way (provider half correct)', async () => {
     process.env.DEEPSEEK_API_KEY = 'demo-key'
     const llm = makeFakeLlm()
     const { ctx, setYaml, clearYaml } = makeFakeCtx({ yamlSettings: TEXT_FALLBACK_YAML, llm })
@@ -509,12 +498,10 @@ describe('plugin apply — graceful fallback when the requested model is missing
         { prompt: 'hi', model: 'deepseek/gpt-5-unreleased' },
         { signal: ac.signal } as never,
       )
-      expect(r.success).toBe(true)
-      expect(r.model).toBe('deepseek/deepseek-chat')
-      expect(r.warning).toMatch(/deepseek\/gpt-5-unreleased/)
-      expect(r.warning).toMatch(/已自动降级/)
-      expect(llm.calls[0].provider).toBe('deepseek')
-      expect(llm.calls[0].model).toBe('deepseek-chat')
+      expect(r.success).toBe(false)
+      expect(r.message).toMatch(/deepseek\/gpt-5-unreleased/)
+      expect(r.message).toMatch(/当前候选/)
+      expect(llm.calls.length).toBe(0)
     } finally {
       delete process.env.DEEPSEEK_API_KEY
       await clearYaml()
@@ -547,9 +534,10 @@ describe('plugin apply — graceful fallback when the requested model is missing
     }
   })
 
-  it('generate_text: when model is missing AND the fallback model has no apiKey, the warning is prepended to the env-var error', async () => {
-    // Sanity check that the warning propagates through env-var errors too
-    // (same shape as the generate_image test of the same name).
+  it('generate_text: an unresolvable id fails before any apiKey check', async () => {
+    // Ordering matters: reporting "missing model" beats reporting "missing
+    // DEEPSEEK_API_KEY" — otherwise the user fixes the env var and still
+    // gets nowhere.
     delete process.env.DEEPSEEK_API_KEY
     delete process.env.OPENAI_API_KEY
     const llm = makeFakeLlm()
@@ -566,8 +554,7 @@ describe('plugin apply — graceful fallback when the requested model is missing
       )
       expect(r.success).toBe(false)
       expect(r.message).toMatch(/typo\/deepseek-chat/)
-      expect(r.message).toMatch(/DEEPSEEK_API_KEY|环境变量/)
-      // prepareCall was never reached (env check fires first).
+      expect(r.message).not.toMatch(/DEEPSEEK_API_KEY/)
       expect(llm.calls.length).toBe(0)
     } finally {
       await clearYaml()

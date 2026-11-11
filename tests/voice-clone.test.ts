@@ -406,7 +406,8 @@ describe('tts / music model separation', () => {
       const ac = new AbortController()
       const r = await t.def.execute({ text: '夜曲' }, { signal: ac.signal })
       expect(r.success).toBe(false)
-      expect(r.message).toMatch(/未发现可用的 music 模型/)
+      // 0.4 wording: no candidates at all for that modality.
+      expect(r.message).toMatch(/未识别到可用的 ?music ?模型/)
     } finally {
       await clearYaml()
     }
@@ -423,18 +424,21 @@ describe('tts / music model separation', () => {
       const ac = new AbortController()
       const r = await t.def.execute({ text: '你好' }, { signal: ac.signal })
       expect(r.success).toBe(false)
-      expect(r.message).toMatch(/未发现可用的 TTS 模型/)
+      expect(r.message).toMatch(/未识别到可用的 ?TTS ?模型/)
     } finally {
       await clearYaml()
     }
   })
 
-  it('requesting a TTS model id from generate_music falls back with a warning, not a silent serve', async () => {
+  // 0.4: asking generate_music for a TTS id is an error that shows the music
+  // candidates — it never quietly serves a different model, and never serves
+  // the TTS model either.
+  it('requesting a TTS model id from generate_music is rejected with the music candidates', async () => {
     process.env.MINIMAX_API_KEY = 'demo-key'
     const { ctx, setYaml, clearYaml } = makeFakeCtx()
     await setYaml(MUSIC_YAML)
     try {
-      const mock = mockFetchWith({
+      mockFetchWith({
         '/audio/speech': () =>
           new Response(MP3_BYTES, { status: 200, headers: { 'content-type': 'audio/mpeg' } }),
       })
@@ -446,14 +450,16 @@ describe('tts / music model separation', () => {
         { text: 'x', model: 'minimax-speech-02-hd' },
         { signal: ac.signal },
       )
-      // Requested-but-missing: falls back to the music model, never to TTS.
-      expect(r.success).toBe(true)
-      expect(r.model).toBe('musicgen-melody')
-      expect(r.message).toMatch(/已自动降级使用 "musicgen-melody"/)
+      expect(r.success).toBe(false)
+      expect(r.message).toMatch(/minimax-speech-02-hd/)
+      // The music model that DOES exist is offered, not used.
+      expect(r.message).toMatch(/musicgen-melody/)
+      expect(r.message).toMatch(/当前候选/)
     } finally {
       await clearYaml()
     }
   })
+
 })
 
 describe('apiProtocol — OpenAI protocol guard', () => {
