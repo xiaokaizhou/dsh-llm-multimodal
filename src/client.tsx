@@ -43,13 +43,11 @@ import {
   type ReactElement,
 } from 'react'
 import type {
-  CapabilitiesSnapshot,
   CapabilityModelRow,
   CapabilityOverrideEntry,
   CapabilityProviderRow,
   CapabilitySource,
   Context,
-  DetectResult,
   ModalityKey,
 } from './context-types.ts'
 import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
@@ -534,15 +532,6 @@ function ModelPicker(props: PickerProps): ReactElement {
  * profile patch file, so it survives a restart and outranks every automatic
  * guess — including the provider's own declared metadata.
  */
-
-const CAPABILITY_LEVELS: CapabilitySource['level'][] = [
-  'override',
-  'declared',
-  'provider',
-  'rule',
-  'family',
-  'fallback',
-]
 
 const CAPABILITY_LEVEL_LABEL: Record<string, keyof LocaleDict> = {
   override: 'sourceOverride',
