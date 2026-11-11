@@ -4,7 +4,7 @@
 
 > **DSH plugin: six generation tools for text / image / video / vision / speech / music, backed by OpenAI-compatible APIs.**
 
-`generate_text` / `generate_image` / `generate_video` / `generate_vision` / `generate_tts` / `generate_music` are auto-discovered from the existing `llm-pi-ai` settings. Every model's modalities (text / image / video / vision / tts / music) are resolved by a **layered capability resolver**: a manual pin wins, then the provider's declared metadata, then metadata probed from the provider's own model list, then family rules, and finally a text fallback. A verdict can be corrected by hand in the settings card — see [Model capability resolution](docs/capability-resolution.md).
+`generate_text` / `generate_image` / `generate_video` / `generate_vision` / `generate_tts` / `generate_music` are auto-discovered from the existing `llm-pi-ai` settings. Every model's modalities (text / image / video / vision / tts / music) are resolved by a **layered capability resolver**: a manual pin wins, then the provider's declared metadata, then metadata probed from the provider's own model list, then family rules, and finally a text fallback. A verdict can be corrected by hand in the settings card — see [Model capability resolution](https://github.com/xiaokaizhou/dsh-llm-multimodal/blob/main/docs/capability-resolution.md).
 
 ## Companion plugins
 
@@ -135,7 +135,7 @@ The file lives at `<profileDir>/llm-multimodal-capabilities.json` (falling back 
 
 **An explicit model is never swapped silently**: a `model` argument wins, and when it matches nothing the tool fails with the candidates currently available for that modality instead of quietly using a different model.
 
-> The full design (data structures, HTTP API, migration and known limits) is in [docs/capability-resolution.md](docs/capability-resolution.md).
+> The full design (data structures, HTTP API, migration and known limits) is in [docs/capability-resolution.md](https://github.com/xiaokaizhou/dsh-llm-multimodal/blob/main/docs/capability-resolution.md).
 >
 > To check the verdicts on your own catalog, run `node scripts/verify-capabilities.mjs` — it reads the current profile's `llm-pi-ai` config and validates 21 real model ids; a non-zero exit code means a mismatch.
 

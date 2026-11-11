@@ -4,7 +4,7 @@
 
 > **DSH 插件：在聊天中提供文本/图像/视频/视觉理解/语音/音乐 六个生成工具，基于 OpenAI 兼容 API。**
 
-`generate_text` / `generate_image` / `generate_video` / `generate_vision` / `generate_tts` / `generate_music` 六个工具会自动从 `llm-pi-ai` 设置中发现可用模型，并用**分层能力解析**判定每个模型支持哪些模态（text / image / video / vision / tts / music）：优先采信人工覆盖与 provider 声明，其次是服务商在线元数据与家族规则，最后兜底为文本。判定结果可在设置卡片里手动纠正 —— 详见[模型能力解析](docs/capability-resolution.md)。
+`generate_text` / `generate_image` / `generate_video` / `generate_vision` / `generate_tts` / `generate_music` 六个工具会自动从 `llm-pi-ai` 设置中发现可用模型，并用**分层能力解析**判定每个模型支持哪些模态（text / image / video / vision / tts / music）：优先采信人工覆盖与 provider 声明，其次是服务商在线元数据与家族规则，最后兜底为文本。判定结果可在设置卡片里手动纠正 —— 详见[模型能力解析](https://github.com/xiaokaizhou/dsh-llm-multimodal/blob/main/docs/capability-resolution.md)。
 
 ## 配套插件（互推）
 
@@ -135,7 +135,7 @@ llm-pi-ai:
 
 **显式指定模型不会被偷偷换掉**：调用时传入的 `model` 参数优先，未命中就明确报错并列出该模态当前可用候选，不再静默降级到别的模型。
 
-> 完整设计（数据结构、HTTP API、迁移与已知边界）见 [docs/capability-resolution.md](docs/capability-resolution.md)。
+> 完整设计（数据结构、HTTP API、迁移与已知边界）见 [docs/capability-resolution.md](https://github.com/xiaokaizhou/dsh-llm-multimodal/blob/main/docs/capability-resolution.md)。
 >
 > 想确认你自己的目录判得对不对，跑 `node scripts/verify-capabilities.mjs`（读当前 profile 的 `llm-pi-ai` 配置，校验 21 条真实模型 id，退出码非 0 表示有偏差）。
 
