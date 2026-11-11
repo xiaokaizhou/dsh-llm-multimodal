@@ -195,6 +195,46 @@ function projectSnapshot(form: ConfigForm<unknown>): CardSnapshot {
   }
 }
 
+/**
+ * Structural styles for the pickers, applied inline for the same reason as
+ * the capability panel: a stylesheet that the host scopes or rewrites must not
+ * be able to flatten a settings form into unformatted text. Everything reads
+ * its colours from host custom properties, which inherit across boundaries.
+ */
+const PICK = {
+  section: { listStyle: 'none', margin: 0, padding: '10px 0', borderTop: '1px solid var(--dsw-alias-border-l2)' },
+  row: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' as const },
+  sectionLabel: { fontSize: 13, fontWeight: 600 as const, color: 'var(--dsw-alias-label-primary)' },
+  summary: { flex: '1 1 160px', minWidth: 0, fontSize: 12, color: 'var(--dsw-alias-label-tertiary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const },
+  body: { display: 'flex', flexDirection: 'column' as const, gap: 2, marginTop: 6 },
+  field: { display: 'flex', flexDirection: 'column' as const, gap: 4, padding: '6px 0' },
+  label: { fontSize: 12.5, fontWeight: 500 as const, color: 'var(--dsw-alias-label-secondary)' },
+  hint: { margin: 0, fontSize: 11.5, lineHeight: 1.5, color: 'var(--dsw-alias-label-tertiary)' },
+  input: {
+    height: 32,
+    padding: '0 10px',
+    border: '1px solid var(--dsw-alias-border-l2)',
+    borderRadius: 8,
+    background: 'var(--dsw-alias-bg-layer-2)',
+    font: 'inherit',
+    fontSize: 12.5,
+    color: 'var(--dsw-alias-label-primary)',
+    boxSizing: 'border-box' as const,
+    width: '100%',
+  },
+  btn: {
+    appearance: 'none' as const,
+    font: 'inherit',
+    fontSize: 11.5,
+    padding: '3px 10px',
+    borderRadius: 6,
+    border: '1px solid var(--dsw-alias-border-l2)',
+    background: 'transparent',
+    color: 'var(--dsw-alias-label-secondary)',
+    cursor: 'pointer',
+  },
+}
+
 function ModalitySection(props: {
   modality: ModalityKey
   label: string
@@ -237,17 +277,18 @@ function ModalitySection(props: {
 
   return h(
     'li',
-    { className: 'dsh-llmm-section' },
+    { className: 'dsh-llmm-section', style: PICK.section },
     h(
       'div',
-      { className: 'dsh-llmm-section-row' },
-      h('span', { className: 'dsh-llmm-section-label' }, props.label),
-      h('span', { className: 'dsh-llmm-section-summary' }, summary),
+      { className: 'dsh-llmm-section-row', style: PICK.row },
+      h('span', { className: 'dsh-llmm-section-label', style: PICK.sectionLabel }, props.label),
+      h('span', { className: 'dsh-llmm-section-summary', style: PICK.summary }, summary),
       h(
         'button',
         {
           type: 'button',
           className: 'dsh-llmm-reset-btn',
+          style: withStyle(PICK.btn, props.state.provider === '' ? { opacity: 0.45 } : null),
           disabled: !props.writable || props.state.provider === '',
           onClick: () => props.onReset(),
         },
@@ -256,15 +297,16 @@ function ModalitySection(props: {
     ),
     h(
       'div',
-      { className: 'dsh-llmm-section-body' },
+      { className: 'dsh-llmm-section-body', style: PICK.body },
       h(
         'label',
-        { className: 'dsh-llmm-field' },
-        h('span', { className: 'dsh-llmm-label' }, props.t('defaultModel')),
+        { className: 'dsh-llmm-field', style: PICK.field },
+        h('span', { className: 'dsh-llmm-label', style: PICK.label }, props.t('defaultModel')),
         h(
           'select',
           {
             className: 'dsh-llmm-select',
+            style: { ...PICK.input, appearance: 'auto' as const },
             value: dropdownValue,
             disabled: !props.writable,
             onChange: (e: any) => props.onDropdownChange(e.target.value),
@@ -273,17 +315,18 @@ function ModalitySection(props: {
           h('option', { value: 'custom' }, props.t('chooseCustom')),
           ...props.presetOptions.map((o) => h('option', { key: o.value, value: o.value }, o.label)),
         ),
-        h('span', { className: 'dsh-llmm-hint' }, props.t('defaultModelHint')),
+        h('span', { className: 'dsh-llmm-hint', style: PICK.hint }, props.t('defaultModelHint')),
       ),
       isCustom && h(Fragment, null,
         h(
           'label',
-          { className: 'dsh-llmm-field' },
-          h('span', { className: 'dsh-llmm-label' }, props.t('apiProtocol')),
+          { className: 'dsh-llmm-field', style: PICK.field },
+          h('span', { className: 'dsh-llmm-label', style: PICK.label }, props.t('apiProtocol')),
           h(
             'select',
             {
               className: 'dsh-llmm-select',
+            style: { ...PICK.input, appearance: 'auto' as const },
               value: props.state.apiProtocol,
               disabled: !props.writable,
               onChange: (e: any) => props.onFieldChange('apiProtocol', e.target.value),
@@ -295,69 +338,73 @@ function ModalitySection(props: {
             h('option', { value: 'minimax' }, 'minimax'),
             h('option', { value: 'elevenlabs' }, 'elevenlabs'),
           ),
-          h('span', { className: 'dsh-llmm-hint' }, props.t('apiProtocolHint')),
+          h('span', { className: 'dsh-llmm-hint', style: PICK.hint }, props.t('apiProtocolHint')),
         ),
         h(
           'label',
-          { className: 'dsh-llmm-field' },
-          h('span', { className: 'dsh-llmm-label' }, props.t('baseURL')),
+          { className: 'dsh-llmm-field', style: PICK.field },
+          h('span', { className: 'dsh-llmm-label', style: PICK.label }, props.t('baseURL')),
           h('input', {
             className: 'dsh-llmm-input',
+            style: PICK.input,
             type: 'text',
             value: props.state.baseURL,
             placeholder: 'https://api.example.com/v1',
             disabled: !props.writable,
             onChange: (e: any) => props.onFieldChange('baseURL', e.target.value),
           }),
-          h('span', { className: 'dsh-llmm-hint' }, props.t('baseURLHint')),
+          h('span', { className: 'dsh-llmm-hint', style: PICK.hint }, props.t('baseURLHint')),
         ),
         h(
           'label',
-          { className: 'dsh-llmm-field' },
-          h('span', { className: 'dsh-llmm-label' }, props.t('apiKey')),
+          { className: 'dsh-llmm-field', style: PICK.field },
+          h('span', { className: 'dsh-llmm-label', style: PICK.label }, props.t('apiKey')),
           h('input', {
             className: 'dsh-llmm-input',
+            style: PICK.input,
             type: 'password',
             value: props.state.apiKey,
             disabled: !props.writable,
             onChange: (e: any) => props.onFieldChange('apiKey', e.target.value),
           }),
-          h('span', { className: 'dsh-llmm-hint' }, props.t('apiKeyHint')),
+          h('span', { className: 'dsh-llmm-hint', style: PICK.hint }, props.t('apiKeyHint')),
         ),
         h(
           'label',
-          { className: 'dsh-llmm-field' },
-          h('span', { className: 'dsh-llmm-label' }, props.t('defaultModel')),
+          { className: 'dsh-llmm-field', style: PICK.field },
+          h('span', { className: 'dsh-llmm-label', style: PICK.label }, props.t('defaultModel')),
           h('input', {
             className: 'dsh-llmm-input',
+            style: PICK.input,
             type: 'text',
             value: props.state.defaultModel,
             placeholder: props.t('defaultModelPlaceholderCustom'),
             disabled: !props.writable,
             onChange: (e: any) => props.onFieldChange('defaultModel', e.target.value),
           }),
-          h('span', { className: 'dsh-llmm-hint' }, props.t('defaultModelHint')),
+          h('span', { className: 'dsh-llmm-hint', style: PICK.hint }, props.t('defaultModelHint')),
         ),
       ),
       includeVoice && (isCustom || isPreset) && h(
         'label',
-        { className: 'dsh-llmm-field' },
-        h('span', { className: 'dsh-llmm-label' }, props.t('voice')),
+        { className: 'dsh-llmm-field', style: PICK.field },
+        h('span', { className: 'dsh-llmm-label', style: PICK.label }, props.t('voice')),
         h('input', {
           className: 'dsh-llmm-input',
+            style: PICK.input,
           type: 'text',
           value: props.state.voice,
           disabled: !props.writable,
           onChange: (e: any) => props.onFieldChange('voice', e.target.value),
         }),
-        h('span', { className: 'dsh-llmm-hint' }, props.t('voiceHint')),
+        h('span', { className: 'dsh-llmm-hint', style: PICK.hint }, props.t('voiceHint')),
       ),
       // An empty bucket is the normal state for a modality the configured
       // providers simply do not serve (no speech model at all, say). Say so
       // instead of showing a dropdown with nothing but the placeholder.
       !props.hasAnyPreset && !props.state.provider && h(
         'p',
-        { className: 'dsh-llmm-hint' },
+        { className: 'dsh-llmm-hint', style: PICK.hint },
         `${props.label}: ${props.t('noModelsHint')}`,
       ),
     ),
@@ -701,6 +748,114 @@ interface CapabilityMatrixProps {
  * an explicit "编辑模态" turns them into a control. That keeps a stray click
  * from overwriting a model's capabilities for every future tool call.
  */
+const CAPS = {
+  head: { display: 'flex', alignItems: 'center', flexWrap: 'wrap' as const, gap: 8 },
+  title: { fontSize: 13, fontWeight: 600 as const, color: 'var(--dsw-alias-label-primary)' },
+  meta: { fontSize: 11.5, color: 'var(--dsw-alias-label-tertiary)', whiteSpace: 'nowrap' as const },
+  file: {
+    display: 'block',
+    marginTop: 6,
+    fontFamily: 'ui-monospace, Menlo, Consolas, monospace',
+    fontSize: 11,
+    lineHeight: 1.5,
+    color: 'var(--dsw-alias-label-tertiary)',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap' as const,
+    maxWidth: '100%',
+  },
+  hint: { margin: '6px 0 0', fontSize: 12, lineHeight: 1.55, color: 'var(--dsw-alias-label-tertiary)' },
+  status: { margin: '8px 0 0', fontSize: 12, lineHeight: 1.5, color: 'var(--dsw-alias-label-tertiary)' },
+  groups: { listStyle: 'none', margin: '10px 0 0', padding: 0, display: 'flex', flexDirection: 'column' as const, gap: 10 },
+  group: {
+    listStyle: 'none',
+    border: '1px solid var(--dsw-alias-border-l2)',
+    borderRadius: 10,
+    background: 'var(--dsw-alias-bg-layer-3)',
+    padding: '10px 12px',
+  },
+  groupHead: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' as const },
+  groupName: { fontSize: 13, fontWeight: 600 as const, color: 'var(--dsw-alias-label-primary)' },
+  groupMeta: {
+    flex: '1 1 180px',
+    minWidth: 0,
+    fontFamily: 'ui-monospace, Menlo, Consolas, monospace',
+    fontSize: 11,
+    color: 'var(--dsw-alias-label-tertiary)',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap' as const,
+  },
+  rows: { listStyle: 'none', margin: '10px 0 0', padding: 0, display: 'flex', flexDirection: 'column' as const },
+  row: { listStyle: 'none', borderTop: '1px solid var(--dsw-alias-border-l2)', padding: '9px 0' },
+  rowHead: { display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' as const },
+  id: {
+    fontFamily: 'ui-monospace, Menlo, Consolas, monospace',
+    fontSize: 12,
+    color: 'var(--dsw-alias-label-primary)',
+    wordBreak: 'break-all' as const,
+  },
+  name: { fontSize: 11.5, color: 'var(--dsw-alias-label-tertiary)' },
+  conf: { marginLeft: 'auto', fontSize: 11, color: 'var(--dsw-alias-label-tertiary)', whiteSpace: 'nowrap' as const },
+  chips: { display: 'flex', flexWrap: 'wrap' as const, gap: 6, marginTop: 7 },
+  chip: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 4,
+    padding: '2px 9px',
+    borderRadius: 999,
+    border: '1px solid var(--dsw-alias-border-l2)',
+    background: 'var(--dsw-alias-bg-layer-2)',
+    fontSize: 11.5,
+    lineHeight: 1.5,
+    color: 'var(--dsw-alias-label-secondary)',
+  },
+  chipOn: { borderColor: 'var(--dsw-alias-brand-primary)', color: 'var(--dsw-alias-brand-primary)' },
+  chipPrimary: { borderStyle: 'dashed' as const },
+  chipBadge: { fontSize: 9.5, letterSpacing: '.04em', textTransform: 'uppercase' as const, opacity: 0.75 },
+  sources: { display: 'flex', flexWrap: 'wrap' as const, gap: 6, marginTop: 7 },
+  source: {
+    padding: '1px 7px',
+    borderRadius: 5,
+    border: '1px solid var(--dsw-alias-border-l2)',
+    fontSize: 11,
+    lineHeight: 1.6,
+    color: 'var(--dsw-alias-label-tertiary)',
+  },
+  actions: { display: 'flex', flexWrap: 'wrap' as const, gap: 6, marginTop: 9, justifyContent: 'flex-end' },
+  btn: {
+    appearance: 'none' as const,
+    font: 'inherit',
+    fontSize: 11.5,
+    lineHeight: 1.4,
+    padding: '3px 10px',
+    borderRadius: 6,
+    border: '1px solid var(--dsw-alias-border-l2)',
+    background: 'transparent',
+    color: 'var(--dsw-alias-label-secondary)',
+    cursor: 'pointer',
+  },
+}
+
+/** Merge a base style with conditional bits, skipping false entries. */
+function withStyle(base: any, ...extra: Array<any>): any {
+  const out = { ...base }
+  for (const item of extra) if (item) Object.assign(out, item)
+  return out
+}
+
+/**
+ * The "模型能力矩阵" panel.
+ *
+ * Rendering is deliberately read-mostly: the chips are the *verdict*, and only
+ * an explicit "编辑模态" turns them into a control. That keeps a stray click
+ * from overwriting a model's capabilities for every future tool call.
+ *
+ * Layout is carried by inline styles rather than only by the injected
+ * stylesheet: this panel is wide, dense and lives inside a host-rendered
+ * card, and a stylesheet that fails to land (a host that scopes or rewrites
+ * injected CSS) would otherwise leave a wall of unformatted text.
+ */
 function CapabilityMatrix(props: CapabilityMatrixProps): ReactElement {
   const { t, enabled } = props
   const matrix = useCapabilityMatrix(enabled)
@@ -719,9 +874,7 @@ function CapabilityMatrix(props: CapabilityMatrixProps): ReactElement {
   const statusText = (() => {
     const { status } = matrix
     if (!status.text) return ''
-    if (status.kind === 'error') {
-      return `${t('capabilitySaveFailed')}: ${status.text}`
-    }
+    if (status.kind === 'error') return `${t('capabilitySaveFailed')}: ${status.text}`
     if (status.text === 'cleared') return t('capabilityCleared')
     if (status.text === 'saved') return t('capabilitySaved')
     if (status.text.startsWith('detected:')) {
@@ -733,177 +886,216 @@ function CapabilityMatrix(props: CapabilityMatrixProps): ReactElement {
 
   const head = h(
     'div',
-    { className: 'dsh-llmm-cap-head' },
-    h('span', { className: 'dsh-llmm-cap-title' }, t('capabilityTitle')),
-    matrix.file ? h('span', { className: 'dsh-llmm-cap-meta' }, `${t('capabilityOverridesFile')}: ${matrix.file}`) : null,
+    { style: CAPS.head },
+    h('span', { className: 'dsh-llmm-cap-title', style: CAPS.title }, t('capabilityTitle')),
     matrix.rules > 0
-      ? h('span', { className: 'dsh-llmm-cap-meta' }, `${t('capabilityRules')} ${matrix.rules} ${t('capabilityRulesUnit')}`)
+      ? h('span', { className: 'dsh-llmm-cap-meta', style: CAPS.meta }, `${t('capabilityRules')} ${matrix.rules} ${t('capabilityRulesUnit')}`)
       : null,
-    h('button', {
-      type: 'button',
-      className: 'dsh-llmm-cap-btn',
-      disabled: matrix.loading,
-      onClick: () => { void matrix.load() },
-    }, matrix.loading ? t('capabilityLoading') : t('capabilityRedetect')),
+    h(
+      'button',
+      {
+        type: 'button',
+        className: 'dsh-llmm-cap-btn',
+        style: withStyle(CAPS.btn, { marginLeft: 'auto' }, { opacity: matrix.loading ? 0.5 : 1 }),
+        disabled: matrix.loading,
+        onClick: () => { void matrix.load() },
+      },
+      matrix.loading ? t('capabilityLoading') : t('capabilityRedetect'),
+    ),
   )
 
-  const body = (() => {
-    if (matrix.loading && matrix.providers.length === 0) {
-      return h('p', { className: 'dsh-llmm-cap-status' }, t('capabilityLoading'))
-    }
-    if (matrix.loadError) {
-      return h('p', { className: 'dsh-llmm-cap-status', 'data-status': 'error' }, `${t('capabilityLoadFailed')}: ${matrix.loadError}`)
-    }
-    if (matrix.providers.length === 0) {
-      return h('p', { className: 'dsh-llmm-cap-status' }, t('capabilityEmpty'))
-    }
+  const fileLine = matrix.file
+    ? h('span', { className: 'dsh-llmm-cap-meta', style: CAPS.file, title: matrix.file }, `${t('capabilityOverridesFile')}: ${matrix.file}`)
+    : null
+
+  const renderRow = (pid: string, row: CapabilityModelRow, index: number) => {
+    const key = capabilityKeyOf(pid, row.id)
+    const current = modalitiesOf(row)
+    const isEditing = editing === key
+    const pinned = Boolean(matrix.overrides[key])
+    const shown = isEditing ? draft : current
+    const sources = Array.isArray(row.sources) ? row.sources : []
+    const busy = matrix.busyKey === key
     return h(
-      'ul',
-      { className: 'dsh-llmm-cap-groups' },
-      ...matrix.providers.map((provider) => {
-        const pid = provider.id
-        const models = Array.isArray(provider.models) ? provider.models : []
-        return h(
-          'li',
-          { className: 'dsh-llmm-cap-group', key: pid },
-          h(
-            'div',
-            { className: 'dsh-llmm-cap-group-head' },
-            h('span', { className: 'dsh-llmm-cap-group-name' }, provider.displayName || provider.name || pid),
-            h('span', { className: 'dsh-llmm-cap-group-meta', title: provider.baseURL || '' }, `${pid} · ${models.length} · ${provider.baseURL || '—'}`),
+      'li',
+      {
+        className: 'dsh-llmm-cap-row',
+        key,
+        style: withStyle(CAPS.row, index === 0 ? { borderTop: '0', paddingTop: 0 } : null),
+      },
+      h(
+        'div',
+        { style: CAPS.rowHead },
+        h('span', { className: 'dsh-llmm-cap-id', style: CAPS.id }, row.id),
+        row.name && row.name !== row.id ? h('span', { className: 'dsh-llmm-cap-name', style: CAPS.name }, row.name) : null,
+        typeof row.confidence === 'number'
+          ? h('span', { className: 'dsh-llmm-cap-conf', style: CAPS.conf }, `${t('capabilityConfidence')} ${row.confidence.toFixed(2)}`)
+          : null,
+      ),
+      h(
+        'div',
+        { style: CAPS.chips, role: isEditing ? 'group' : undefined },
+        ...MODALITY_ORDER.map((m) => {
+          const on = shown.includes(m)
+          if (!isEditing && !on) return null
+          const isPrimary = (row.primary || row.type) === m
+          const style = withStyle(
+            CAPS.chip,
+            on && !isEditing ? CAPS.chipOn : null,
+            isPrimary ? CAPS.chipPrimary : null,
+            isEditing ? { cursor: 'pointer', opacity: on ? 1 : 0.55 } : null,
+            isEditing && on ? CAPS.chipOn : null,
+          )
+          const children = [
+            h('span', { key: 'l' }, MODALITY_LABEL[m]),
+            isPrimary ? h('span', { key: 'b', style: CAPS.chipBadge }, t('capabilityPrimary')) : null,
+          ]
+          if (!isEditing) {
+            return h('span', { key: m, className: 'dsh-llmm-cap-chip', style, 'data-on': on ? 'true' : 'false' }, ...children)
+          }
+          return h(
+            'button',
+            {
+              type: 'button',
+              key: m,
+              className: 'dsh-llmm-cap-chip dsh-llmm-cap-chip-btn',
+              style,
+              'data-on': on ? 'true' : 'false',
+              'aria-pressed': on ? 'true' : 'false',
+              disabled: busy,
+              onClick: () => toggleDraft(m),
+            },
+            ...children,
+          )
+        }),
+      ),
+      sources.length > 0 && !isEditing
+        ? h(
+          'div',
+          { style: CAPS.sources },
+          ...sources.map((source, i) => {
+            const level = String((source as any)?.level || 'fallback')
+            const labelKey = CAPABILITY_LEVEL_LABEL[level] || 'sourceFallback'
+            const hintKey = CAPABILITY_LEVEL_HINT[level] || 'sourceFallbackHint'
+            return h(
+              'span',
+              {
+                key: `${level}-${i}`,
+                className: 'dsh-llmm-cap-source',
+                style: withStyle(CAPS.source, level === 'override' ? CAPS.chipOn : null),
+                'data-level': level,
+                title: t(hintKey),
+              },
+              t(labelKey),
+              (source as any)?.id
+                ? h('span', { className: 'dsh-llmm-cap-source-id', style: { opacity: 0.8, marginLeft: 4 } }, String((source as any).id))
+                : null,
+            )
+          }),
+        )
+        : null,
+      h(
+        'div',
+        { style: CAPS.actions },
+        isEditing
+          ? h(Fragment, null,
             h('button', {
               type: 'button',
               className: 'dsh-llmm-cap-btn',
-              disabled: !provider.baseURL || matrix.detecting === pid,
-              title: provider.baseURL ? '' : t('sourceProviderHint'),
-              onClick: () => { void matrix.detect(pid) },
-            }, matrix.detecting === pid ? t('capabilityDetecting') : t('capabilityRedetect')),
+              style: CAPS.btn,
+              disabled: busy || draft.length === 0,
+              onClick: async () => {
+                const ok = await matrix.pin(key, draft)
+                if (ok) setEditing('')
+              },
+            }, busy ? t('capabilitySaving') : t('capabilitySave')),
+            h('button', {
+              type: 'button',
+              className: 'dsh-llmm-cap-btn',
+              style: CAPS.btn,
+              onClick: () => setEditing(''),
+            }, t('capabilityCancel')),
+            pinned
+              ? h('button', {
+                type: 'button',
+                className: 'dsh-llmm-cap-btn',
+                style: CAPS.btn,
+                disabled: busy,
+                onClick: async () => {
+                  const ok = await matrix.pin(key, [])
+                  if (ok) setEditing('')
+                },
+              }, t('capabilityClear'))
+              : null,
+          )
+          : h(Fragment, null,
+            h('button', {
+              type: 'button',
+              className: 'dsh-llmm-cap-btn',
+              style: CAPS.btn,
+              disabled: busy,
+              onClick: () => beginEdit(key, current),
+            }, t('capabilityEdit')),
+            pinned
+              ? h('button', {
+                type: 'button',
+                className: 'dsh-llmm-cap-btn',
+                style: CAPS.btn,
+                disabled: busy,
+                onClick: async () => { await matrix.pin(key, []) },
+              }, t('capabilityClear'))
+              : null,
           ),
+      ),
+    )
+  }
+
+  const body = (() => {
+    if (matrix.loading && matrix.providers.length === 0) {
+      return h('p', { className: 'dsh-llmm-cap-status', style: CAPS.status }, t('capabilityLoading'))
+    }
+    if (matrix.loadError) {
+      return h('p', { className: 'dsh-llmm-cap-status', style: CAPS.status, 'data-status': 'error' }, `${t('capabilityLoadFailed')}: ${matrix.loadError}`)
+    }
+    if (matrix.providers.length === 0) {
+      return h('p', { className: 'dsh-llmm-cap-status', style: CAPS.status }, t('capabilityEmpty'))
+    }
+    return h(
+      'ul',
+      { className: 'dsh-llmm-cap-groups', style: CAPS.groups },
+      ...matrix.providers.map((provider) => {
+        const pid = provider.id
+        const models = Array.isArray(provider.models) ? provider.models : []
+        const detecting = matrix.detecting === pid
+        const noEndpoint = !provider.baseURL
+        return h(
+          'li',
+          { className: 'dsh-llmm-cap-group', key: pid, style: CAPS.group },
           h(
-            'ul',
-            { className: 'dsh-llmm-cap-rows' },
-            ...models.map((row) => {
-              const key = capabilityKeyOf(pid, row.id)
-              const current = modalitiesOf(row)
-              const isEditing = editing === key
-              const pinned = Boolean(matrix.overrides[key])
-              const shown = isEditing ? draft : current
-              const sources = Array.isArray(row.sources) ? row.sources : []
-              return h(
-                'li',
-                { className: 'dsh-llmm-cap-row', key },
-                h(
-                  'div',
-                  { className: 'dsh-llmm-cap-row-head' },
-                  h('span', { className: 'dsh-llmm-cap-id' }, row.id),
-                  row.name && row.name !== row.id ? h('span', { className: 'dsh-llmm-cap-name' }, row.name) : null,
-                  pinned ? h('span', { className: 'dsh-llmm-cap-source', 'data-level': 'override' }, t('sourceOverride')) : null,
-                  typeof row.confidence === 'number'
-                    ? h('span', { className: 'dsh-llmm-cap-conf' }, `${t('capabilityConfidence')} ${row.confidence.toFixed(2)}`)
-                    : null,
-                ),
-                h(
-                  'div',
-                  { className: 'dsh-llmm-cap-chips' },
-                  ...MODALITY_ORDER.map((m) => {
-                    const on = shown.includes(m)
-                    const isPrimary = (row.primary || row.type) === m
-                    const label = h('span', null, MODALITY_LABEL[m])
-                    const className = [
-                      'dsh-llmm-cap-chip',
-                      isPrimary ? 'dsh-llmm-cap-chip-primary' : '',
-                      isEditing ? 'dsh-llmm-cap-chip-btn' : '',
-                    ].filter(Boolean).join(' ')
-                    if (!isEditing && !on) return null
-                    return h(
-                      isEditing ? 'button' : 'span',
-                      isEditing
-                        ? {
-                          type: 'button',
-                          key: m,
-                          className,
-                          'data-on': on ? 'true' : 'false',
-                          'aria-pressed': on ? 'true' : 'false',
-                          disabled: matrix.busyKey === key,
-                          onClick: () => toggleDraft(m),
-                        }
-                        : { key: m, className, 'data-on': on ? 'true' : 'false' },
-                      label,
-                      isPrimary ? h('span', { className: 'dsh-llmm-cap-chip-badge' }, t('capabilityPrimary')) : null,
-                    )
-                  }),
-                ),
-                sources.length > 0 && !isEditing
-                  ? h(
-                    'div',
-                    { className: 'dsh-llmm-cap-sources' },
-                    ...sources.map((source, i) => {
-                      const level = String(source?.level || 'fallback')
-                      const labelKey = CAPABILITY_LEVEL_LABEL[level] || 'sourceFallback'
-                      const hintKey = CAPABILITY_LEVEL_HINT[level] || 'sourceFallbackHint'
-                      return h(
-                        'span',
-                        {
-                          key: `${level}-${i}`,
-                          className: 'dsh-llmm-cap-source',
-                          'data-level': level,
-                          title: t(hintKey),
-                        },
-                        t(labelKey),
-                        source?.id ? h('span', { className: 'dsh-llmm-cap-source-id' }, ` ${source.id}`) : null,
-                      )
-                    }),
-                  )
-                  : null,
-                isEditing
-                  ? h(
-                    'div',
-                    { className: 'dsh-llmm-cap-actions' },
-                    h('button', {
-                      type: 'button',
-                      className: 'dsh-llmm-cap-btn',
-                      disabled: matrix.busyKey === key || draft.length === 0,
-                      onClick: async () => {
-                        const ok = await matrix.pin(key, draft)
-                        if (ok) setEditing('')
-                      },
-                    }, matrix.busyKey === key ? t('capabilitySaving') : t('capabilitySave')),
-                    h('button', {
-                      type: 'button',
-                      className: 'dsh-llmm-cap-btn',
-                      onClick: () => setEditing(''),
-                    }, t('capabilityCancel')),
-                    pinned
-                      ? h('button', {
-                        type: 'button',
-                        className: 'dsh-llmm-cap-btn',
-                        disabled: matrix.busyKey === key,
-                        onClick: async () => {
-                          const ok = await matrix.pin(key, [])
-                          if (ok) setEditing('')
-                        },
-                      }, t('capabilityClear'))
-                      : null,
-                  )
-                  : h('div', { className: 'dsh-llmm-cap-actions' },
-                    h('button', {
-                      type: 'button',
-                      className: 'dsh-llmm-cap-btn',
-                      disabled: Boolean(matrix.busyKey),
-                      onClick: () => beginEdit(key, current),
-                    }, t('capabilityEdit')),
-                    pinned
-                      ? h('button', {
-                        type: 'button',
-                        className: 'dsh-llmm-cap-btn',
-                        disabled: matrix.busyKey === key,
-                        onClick: async () => { await matrix.pin(key, []) },
-                      }, t('capabilityClear'))
-                      : null,
-                  ),
-              )
-            }),
+            'div',
+            { style: CAPS.groupHead },
+            h('span', { className: 'dsh-llmm-cap-group-name', style: CAPS.groupName }, provider.displayName || provider.name || pid),
+            h(
+              'span',
+              { className: 'dsh-llmm-cap-group-meta', style: CAPS.groupMeta, title: provider.baseURL || '' },
+              `${pid} · ${models.length} ${t('capabilityModelsUnit')} · ${provider.baseURL || '—'}`,
+            ),
+            h(
+              'button',
+              {
+                type: 'button',
+                className: 'dsh-llmm-cap-btn',
+                style: withStyle(CAPS.btn, (noEndpoint || detecting) ? { opacity: 0.5 } : null),
+                disabled: noEndpoint || detecting,
+                title: noEndpoint ? t('capabilityNoEndpoint') : '',
+                onClick: () => { void matrix.detect(pid) },
+              },
+              detecting ? t('capabilityDetecting') : t('capabilityDetectGroup'),
+            ),
           ),
+          models.length === 0
+            ? h('p', { style: CAPS.hint }, t('capabilityGroupEmpty'))
+            : h('ul', { className: 'dsh-llmm-cap-rows', style: CAPS.rows }, ...models.map((row, i) => renderRow(pid, row, i))),
         )
       }),
     )
@@ -911,11 +1103,12 @@ function CapabilityMatrix(props: CapabilityMatrixProps): ReactElement {
 
   return h(
     'div',
-    { className: 'dsh-llmm-cap' },
+    { className: 'dsh-llmm-cap', style: { borderTop: '1px solid var(--dsw-alias-border-l2)', marginTop: 12, paddingTop: 12 } },
     head,
-    h('p', { className: 'dsh-llmm-cap-hint' }, t('capabilityTitleHint')),
+    fileLine,
+    h('p', { className: 'dsh-llmm-cap-hint', style: CAPS.hint }, t('capabilityTitleHint')),
     statusText
-      ? h('p', { className: 'dsh-llmm-cap-status', 'data-status': matrix.status.kind, role: 'status' }, statusText)
+      ? h('p', { className: 'dsh-llmm-cap-status', style: CAPS.status, 'data-status': matrix.status.kind, role: 'status' }, statusText)
       : null,
     body,
   )

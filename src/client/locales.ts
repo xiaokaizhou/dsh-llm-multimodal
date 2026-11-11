@@ -78,6 +78,10 @@ export interface LocaleDict {
   capabilityOverridesFile: string
   capabilityRules: string
   capabilityRulesUnit: string
+  capabilityModelsUnit: string
+  capabilityNoEndpoint: string
+  capabilityDetectGroup: string
+  capabilityGroupEmpty: string
   capabilityNoOverride: string
   sourceOverride: string
   sourceOverrideHint: string
@@ -164,6 +168,10 @@ export const zh: LocaleDict = {
   capabilityOverridesFile: '覆盖文件',
   capabilityRules: '生效规则',
   capabilityRulesUnit: '条',
+  capabilityModelsUnit: '个模型',
+  capabilityNoEndpoint: '该 provider 未配置 baseURL，无法在线探测；可在能力矩阵里手动标记模态。',
+  capabilityDetectGroup: '重新探测',
+  capabilityGroupEmpty: '该 provider 下没有模型。',
   capabilityNoOverride: '无手动覆盖',
   sourceOverride: '手动指定',
   sourceOverrideHint: '你在本卡片手动指定，优先级最高，覆盖所有自动判定。',
@@ -250,6 +258,10 @@ export const en: LocaleDict = {
   capabilityOverridesFile: 'Override file',
   capabilityRules: 'Active rules',
   capabilityRulesUnit: '',
+  capabilityModelsUnit: 'models',
+  capabilityNoEndpoint: 'This provider has no baseURL, so it cannot be probed online. Mark modalities by hand in the matrix below.',
+  capabilityDetectGroup: 'Re-probe',
+  capabilityGroupEmpty: 'No models under this provider.',
   capabilityNoOverride: 'No manual override',
   sourceOverride: 'Manual',
   sourceOverrideHint: 'Set by you in this card — the strongest evidence, it overrides every automatic detection.',
