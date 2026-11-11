@@ -229,3 +229,32 @@ describe('pickForTool — auto-pick stays callable', () => {
     expect(pickForTool(noEndpoint, 'image').model?.id).toBe('y')
   })
 })
+
+describe('pickForTool — a mixed gateway keeps claude-* out of the auto-pick', () => {
+  const gateway = [
+    { provider: 'saygm', id: 'claude-opus-5', name: 'Claude Opus 5', modalities: ['text', 'vision'], baseURL: 'https://api.saygm.com/v1', apiProtocol: 'openai' },
+    { provider: 'saygm', id: 'gpt-5.6-sol', name: 'GPT 5.6 Sol', modalities: ['text', 'vision'], baseURL: 'https://api.saygm.com/v1', apiProtocol: 'openai' },
+  ]
+
+  it('prefers a family the gateway serves on /chat/completions', () => {
+    // Regression: the auto-pick landed on claude-fable-5 and the gateway
+    // answered "claude-fable-5 is served on POST /v1/messages".
+    expect(pickForTool(gateway, 'vision').model?.id).toBe('gpt-5.6-sol')
+  })
+
+  it('still honours claude-* when the caller names it', () => {
+    expect(pickForTool(gateway, 'vision', 'claude-opus-5').model?.id).toBe('claude-opus-5')
+  })
+
+  it('keeps claude-* when it is the only candidate', () => {
+    const only = [gateway[0]]
+    expect(pickForTool(only, 'vision').model?.id).toBe('claude-opus-5')
+  })
+
+  it('does not defer claude-* on a provider configured as the claude protocol', () => {
+    // Those rows are rejected later by the protocol guard with a clear
+    // message, so ordering them last would change nothing.
+    const anthropic = [{ ...gateway[0], apiProtocol: 'claude' }]
+    expect(pickForTool(anthropic, 'vision').model?.id).toBe('claude-opus-5')
+  })
+})
