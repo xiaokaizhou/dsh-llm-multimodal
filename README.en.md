@@ -136,6 +136,8 @@ The file lives at `<profileDir>/llm-multimodal-capabilities.json` (falling back 
 **An explicit model is never swapped silently**: a `model` argument wins, and when it matches nothing the tool fails with the candidates currently available for that modality instead of quietly using a different model.
 
 > The full design (data structures, HTTP API, migration and known limits) is in [docs/capability-resolution.md](docs/capability-resolution.md).
+>
+> To check the verdicts on your own catalog, run `node scripts/verify-capabilities.mjs` — it reads the current profile's `llm-pi-ai` config and validates 21 real model ids; a non-zero exit code means a mismatch.
 
 ## Usage
 

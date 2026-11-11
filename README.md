@@ -136,6 +136,8 @@ llm-pi-ai:
 **显式指定模型不会被偷偷换掉**：调用时传入的 `model` 参数优先，未命中就明确报错并列出该模态当前可用候选，不再静默降级到别的模型。
 
 > 完整设计（数据结构、HTTP API、迁移与已知边界）见 [docs/capability-resolution.md](docs/capability-resolution.md)。
+>
+> 想确认你自己的目录判得对不对，跑 `node scripts/verify-capabilities.mjs`（读当前 profile 的 `llm-pi-ai` 配置，校验 21 条真实模型 id，退出码非 0 表示有偏差）。
 
 ## 使用方式
 
