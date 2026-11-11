@@ -8,7 +8,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { writeFile, mkdir } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { buildModelsSnapshot, pickForTool } from '../lib/index.js'
+import { buildModelsSnapshot, pickForTool, nativeRouteHint } from '../lib/index.js'
 
 async function writeYaml(content) {
   const dir = join(tmpdir(), 'llm-multimodal-models-' + Date.now())
@@ -256,5 +256,20 @@ describe('pickForTool — a mixed gateway keeps claude-* out of the auto-pick', 
     // message, so ordering them last would change nothing.
     const anthropic = [{ ...gateway[0], apiProtocol: 'claude' }]
     expect(pickForTool(anthropic, 'vision').model?.id).toBe('claude-opus-5')
+  })
+})
+
+describe('nativeRouteHint — explain a family served on its own route', () => {
+  const target = { id: 'claude-fable-5', provider: 'saygm' }
+
+  it('explains the gateway message instead of echoing it alone', () => {
+    const hint = nativeRouteHint(target, 'claude-fable-5 is served on POST /v1/messages')
+    expect(hint).toContain('原生端点')
+    expect(hint).toContain('/chat/completions')
+  })
+
+  it('returns null for unrelated provider errors', () => {
+    expect(nativeRouteHint(target, 'invalid api key')).toBeNull()
+    expect(nativeRouteHint(target, '')).toBeNull()
   })
 })
